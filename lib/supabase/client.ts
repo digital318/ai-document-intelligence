@@ -6,9 +6,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * Note: `process.env.NEXT_PUBLIC_*` must be referenced statically so Next.js
  * can inline the values into the client bundle at build time.
  */
-function getSupabaseConfig(): { url: string; anonKey: string } {
+function getSupabaseConfig(): { url: string; publishableKey: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url) {
     throw new Error(
@@ -18,15 +18,15 @@ function getSupabaseConfig(): { url: string; anonKey: string } {
     );
   }
 
-  if (!anonKey) {
+  if (!publishableKey) {
     throw new Error(
-      "Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+      "Missing environment variable: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. " +
         "Add it to your .env.local file (see .env.example). " +
         "You can find this value in your Supabase dashboard under Project Settings > API.",
     );
   }
 
-  return { url, anonKey };
+  return { url, publishableKey };
 }
 
 let client: SupabaseClient | undefined;
@@ -40,8 +40,8 @@ let client: SupabaseClient | undefined;
  */
 export function getSupabaseClient(): SupabaseClient {
   if (!client) {
-    const { url, anonKey } = getSupabaseConfig();
-    client = createClient(url, anonKey);
+    const { url, publishableKey } = getSupabaseConfig();
+    client = createClient(url, publishableKey);
   }
 
   return client;
