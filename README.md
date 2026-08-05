@@ -20,6 +20,19 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Phase 3 — Backend Foundation (Supabase)
+
+The migration `supabase/migrations/20260805193000_phase_3_backend_foundation.sql` sets up the backend schema:
+
+- **Tables**
+  - `public.profiles` — one row per auth user, auto-created by a trigger on `auth.users`.
+  - `public.documents` — metadata for uploaded files (name, storage path, MIME type, size, status).
+  - `public.document_processing_jobs` — async AI processing queue, one or more jobs per document.
+  - `public.document_results` — AI analysis output (summary, extracted fields, confidence), one row per document.
+- **Storage** — a private `documents` bucket (25 MiB limit; PDF, JPEG, PNG, WebP, DOCX, and plain-text only). Files must be stored at `<user-id>/<document-id>/<filename>`; storage policies only allow users to access objects under their own user-id folder.
+- **Security** — Row Level Security is enabled on all four tables and all policies are scoped to the `authenticated` role, so every read/write requires a signed-in user who owns the row (directly or via the parent document). There is no anonymous access.
+- **Deferred** — chat, embeddings, and document-chunk tables are intentionally not part of this phase.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
