@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 /**
  * Reads and validates the Supabase environment variables.
@@ -29,20 +29,13 @@ function getSupabaseConfig(): { url: string; publishableKey: string } {
   return { url, publishableKey };
 }
 
-let client: SupabaseClient | undefined;
-
 /**
- * Returns a shared Supabase client instance.
+ * Creates a browser Supabase client for Client Components.
  *
- * The client is created lazily on first use and reused afterwards, so
- * importing this module never throws — errors about missing environment
- * variables only surface when the client is actually requested.
+ * `createBrowserClient` uses a singleton pattern internally, so repeated
+ * calls reuse the same instance.
  */
-export function getSupabaseClient(): SupabaseClient {
-  if (!client) {
-    const { url, publishableKey } = getSupabaseConfig();
-    client = createClient(url, publishableKey);
-  }
-
-  return client;
+export function createClient() {
+  const { url, publishableKey } = getSupabaseConfig();
+  return createBrowserClient(url, publishableKey);
 }
