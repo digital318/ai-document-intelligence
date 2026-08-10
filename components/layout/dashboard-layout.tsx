@@ -6,15 +6,19 @@ import { Topbar } from "./topbar";
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  userEmail?: string | null;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({ children, userEmail }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <Topbar onMenuClick={() => setSidebarOpen(true)} />
+      <Topbar
+        onMenuClick={() => setSidebarOpen(true)}
+        userEmail={userEmail}
+      />
 
       {/* Scrollable content area, offset for fixed sidebar and topbar */}
       <main className="pt-16 lg:pl-64">

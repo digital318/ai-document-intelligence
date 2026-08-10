@@ -1,12 +1,44 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_ROUTES = [
+  "/login",
+  "/signup",
+  "/auth/callback",
+  "/api/health/supabase",
+] as const;
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
+function isAuthPage(pathname: string): boolean {
+  return pathname === "/login" || pathname === "/signup";
+}
+
 /**
- * Refreshes the Supabase Auth session for the current request.
+ * Copies refreshed auth cookies from the session response onto a redirect
+ * response so the browser stays in sync with the server.
+ */
+function redirectWithCookies(
+  url: URL,
+  supabaseResponse: NextResponse,
+): NextResponse {
+  const redirectResponse = NextResponse.redirect(url);
+  supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
+    redirectResponse.cookies.set(name, value);
+  });
+  return redirectResponse;
+}
+
+/**
+ * Refreshes the Supabase Auth session and enforces route protection.
  *
- * Copies refreshed cookies onto both the request (for downstream Server
- * Components) and the response (for the browser). Does not redirect or
- * enforce route protection.
+ * Uses getClaims() (not getSession()) for authorization. Public routes stay
+ * reachable without a session; all other routes require authentication.
+ * Refreshed cookies are preserved on redirects.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -45,7 +77,24 @@ export async function updateSession(request: NextRequest) {
   // Do not run code between createServerClient and getClaims().
   // getClaims() validates/refreshes the auth token; do not use getSession()
   // as an authorization check.
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const isAuthenticated = Boolean(data?.claims);
+
+  const { pathname } = request.nextUrl;
+
+  if (!isAuthenticated && !isPublicRoute(pathname)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    return redirectWithCookies(loginUrl, supabaseResponse);
+  }
+
+  if (isAuthenticated && isAuthPage(pathname)) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+    homeUrl.search = "";
+    return redirectWithCookies(homeUrl, supabaseResponse);
+  }
 
   return supabaseResponse;
 }

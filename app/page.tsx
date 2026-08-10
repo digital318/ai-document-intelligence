@@ -6,6 +6,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { createClient } from "@/lib/supabase/server";
 
 const stats = [
   {
@@ -38,9 +39,14 @@ const stats = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const userEmail =
+    typeof data?.claims?.email === "string" ? data.claims.email : null;
+
   return (
-    <DashboardLayout>
+    <DashboardLayout userEmail={userEmail}>
       {/* Welcome heading */}
       <div className="mb-8">
         <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">

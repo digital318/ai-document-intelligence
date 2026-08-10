@@ -1,12 +1,14 @@
 "use client";
 
-import { Bell, Menu, Search, User } from "lucide-react";
+import { Bell, LogOut, Menu, Search, User } from "lucide-react";
+import { signOut } from "@/app/auth/actions";
 
 interface TopbarProps {
   onMenuClick: () => void;
+  userEmail?: string | null;
 }
 
-export function Topbar({ onMenuClick }: TopbarProps) {
+export function Topbar({ onMenuClick, userEmail }: TopbarProps) {
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950 sm:px-6 lg:left-64">
       {/* Mobile menu button */}
@@ -46,14 +48,33 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-indigo-600" />
       </button>
 
-      {/* User avatar */}
-      <button
-        type="button"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-        aria-label="User menu"
-      >
-        <User className="h-5 w-5" />
-      </button>
+      {/* Authenticated user */}
+      <div className="flex items-center gap-2">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+          aria-hidden="true"
+        >
+          <User className="h-5 w-5" />
+        </span>
+        {userEmail ? (
+          <span
+            className="hidden max-w-[10rem] truncate text-sm text-zinc-600 dark:text-zinc-300 sm:inline lg:max-w-[14rem]"
+            title={userEmail}
+          >
+            {userEmail}
+          </span>
+        ) : null}
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+            aria-label="Log out"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </form>
+      </div>
     </header>
   );
 }
