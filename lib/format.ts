@@ -14,6 +14,9 @@ export function formatFileSize(bytes: number): string {
     unitIndex += 1;
   } while (value >= 1024 && unitIndex < units.length - 1);
 
-  const rounded = value >= 10 ? Math.round(value).toString() : value.toFixed(1);
+  const rounded =
+    value >= 10
+      ? Math.round(value).toString()
+      : value.toFixed(1).replace(/\.0$/, "");
   return `${rounded} ${units[unitIndex]}`;
 }
