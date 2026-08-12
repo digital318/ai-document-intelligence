@@ -129,6 +129,17 @@ export function hasActiveFilters(params: DocumentListParams): boolean {
   return params.q.length > 0 || params.status !== null || params.type !== null;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True when the value is a well-formed UUID. Used to reject malformed
+ * document ids before they ever reach a database query.
+ */
+export function isValidUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
 /** Escapes LIKE/ILIKE wildcards so user input matches literally. */
 export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (match) => `\\${match}`);

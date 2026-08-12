@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { formatMimeTypeLabel } from "@/lib/documents";
 import { formatFileSize } from "@/lib/format";
+import { DocumentActions } from "./document-actions";
 import { DocumentStatusBadge } from "./document-status-badge";
 
 export interface DocumentListItem {
@@ -30,7 +31,7 @@ export function DocumentTable({
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 dark:border-zinc-800">
               <th className={HEADER_CELL}>Name</th>
@@ -38,6 +39,7 @@ export function DocumentTable({
               <th className={HEADER_CELL}>Size</th>
               <th className={HEADER_CELL}>Status</th>
               <th className={HEADER_CELL}>Uploaded</th>
+              <th className={`${HEADER_CELL} text-right`}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
@@ -72,6 +74,12 @@ export function DocumentTable({
                 </td>
                 <td className="px-5 py-3.5 whitespace-nowrap text-zinc-500 dark:text-zinc-400">
                   {dateFormatter.format(new Date(doc.created_at))}
+                </td>
+                <td className="px-5 py-3.5 whitespace-nowrap">
+                  <DocumentActions
+                    documentId={doc.id}
+                    fileName={doc.file_name}
+                  />
                 </td>
               </tr>
             ))}
