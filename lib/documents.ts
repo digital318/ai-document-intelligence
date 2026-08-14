@@ -29,9 +29,12 @@ export const STATUS_LABELS: Record<DocumentStatus, string> = {
   failed: "Failed",
 };
 
+/** MIME type processed by Phase 6A document analysis. */
+export const PDF_MIME_TYPE = "application/pdf";
+
 /** Maps each URL `type` filter value to the MIME types it covers. */
 export const TYPE_FILTERS = {
-  pdf: ["application/pdf"],
+  pdf: [PDF_MIME_TYPE],
   word: [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ],

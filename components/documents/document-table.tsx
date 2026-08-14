@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { formatMimeTypeLabel } from "@/lib/documents";
 import { formatFileSize } from "@/lib/format";
+import { AnalyzeDocumentButton } from "./analyze-document-button";
 import { DocumentActions } from "./document-actions";
 import { DocumentStatusBadge } from "./document-status-badge";
 
@@ -31,7 +32,7 @@ export function DocumentTable({
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 dark:border-zinc-800">
               <th className={HEADER_CELL}>Name</th>
@@ -76,10 +77,18 @@ export function DocumentTable({
                   {dateFormatter.format(new Date(doc.created_at))}
                 </td>
                 <td className="px-5 py-3.5 whitespace-nowrap">
-                  <DocumentActions
-                    documentId={doc.id}
-                    fileName={doc.file_name}
-                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <AnalyzeDocumentButton
+                      documentId={doc.id}
+                      fileName={doc.file_name}
+                      mimeType={doc.mime_type}
+                      status={doc.status}
+                    />
+                    <DocumentActions
+                      documentId={doc.id}
+                      fileName={doc.file_name}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

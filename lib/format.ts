@@ -39,6 +39,13 @@ const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
   numeric: "auto",
 });
 
+/** Formats a 0–1 confidence score as a percentage, e.g. 0.87 -> "87%". */
+export function formatConfidence(score: number | null | undefined): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "—";
+  const clamped = Math.min(1, Math.max(0, score));
+  return `${Math.round(clamped * 100)}%`;
+}
+
 /** Readable local date and time, e.g. "Aug 14, 2026, 5:53 PM". */
 export function formatDateTime(isoDate: string): string {
   const date = new Date(isoDate);
