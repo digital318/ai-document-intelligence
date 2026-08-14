@@ -33,6 +33,15 @@ The migration `supabase/migrations/20260805193000_phase_3_backend_foundation.sql
 - **Security** — Row Level Security is enabled on all four tables and all policies are scoped to the `authenticated` role, so every read/write requires a signed-in user who owns the row (directly or via the parent document). There is no anonymous access.
 - **Deferred** — chat, embeddings, and document-chunk tables are intentionally not part of this phase.
 
+## Phase 5D — Live Dashboard
+
+The authenticated dashboard at `/` reads live per-user data through the cookie-based server Supabase client. Row Level Security remains the access boundary; the app never uses a service-role or secret key for dashboard queries.
+
+- **Metrics** — `public.get_dashboard_metrics()` (see `supabase/migrations/20260814_phase_5d_dashboard_metrics.sql`) returns `total_documents`, `processed_documents`, `ai_requests_this_month`, and `storage_bytes` for `auth.uid()` only. The function is `SECURITY INVOKER`, filters `user_id = auth.uid()`, and is executable only by `authenticated`.
+- **Recent documents** — the five newest rows from `public.documents` (name, MIME type, size, status, created time). Items link to `/documents`; storage paths are never exposed.
+- **Recent activity** — derived in application code from recent document uploads and `public.document_processing_jobs` (queued / started / completed / failed). There is no separate activity table; deleting a document may remove its upload entry from this feed.
+- **AI Requests** currently counts processing-job rows created this calendar month. Actual OpenAI processing, OCR, embeddings, and document chat are deferred to a later phase, so this metric is expected to stay `0` until then.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
