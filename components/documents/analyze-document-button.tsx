@@ -4,11 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
-import { PDF_MIME_TYPE } from "@/lib/documents";
+import { isSupportedAnalysisMimeType } from "@/lib/documents";
 
 const SAFE_PROCESS_ERRORS = new Set([
   "Unable to analyze this document. Please try again.",
-  "This phase currently processes PDF documents only.",
+  "This file type is not supported for analysis.",
   "This document is already being analyzed.",
   "Document not found",
 ]);
@@ -24,7 +24,7 @@ interface AnalyzeDocumentButtonProps {
   status: string;
   /** Used only for accessible labels. Never a storage path. */
   fileName?: string;
-  /** Used only to hide the control for non-PDF files. */
+  /** Used only to hide the control for unsupported file types. */
   mimeType?: string;
   /**
    * table: processed documents link to the analysis page.
@@ -54,7 +54,7 @@ function actionLabel(status: string, placement: "table" | "detail"): string | nu
 }
 
 /**
- * User-triggered PDF analysis. The browser sends only the document UUID.
+ * User-triggered document analysis. The browser sends only the document UUID.
  */
 export function AnalyzeDocumentButton({
   documentId,
@@ -67,7 +67,7 @@ export function AnalyzeDocumentButton({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  if (mimeType && mimeType !== PDF_MIME_TYPE) {
+  if (mimeType && !isSupportedAnalysisMimeType(mimeType)) {
     return null;
   }
 

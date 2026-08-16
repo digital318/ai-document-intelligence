@@ -16,9 +16,9 @@ import {
 } from "@/components/documents/processing-history";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
-  isValidUuid,
-  PDF_MIME_TYPE,
   formatMimeTypeLabel,
+  isSupportedAnalysisMimeType,
+  isValidUuid,
 } from "@/lib/documents";
 import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -117,13 +117,13 @@ function toHistoryJobs(rows: ProcessingJobRow[]): ProcessingHistoryJob[] {
 
 function ProcessingState({
   status,
-  isPdf,
+  canAnalyze,
   documentId,
   fileName,
   mimeType,
 }: {
   status: string;
-  isPdf: boolean;
+  canAnalyze: boolean;
   documentId: string;
   fileName: string;
   mimeType: string;
@@ -156,7 +156,7 @@ function ProcessingState({
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
           The previous analysis attempt did not complete.
         </p>
-        {isPdf ? (
+        {canAnalyze ? (
           <div className="mt-5 flex justify-center">
             <AnalyzeDocumentButton
               documentId={documentId}
@@ -191,11 +191,11 @@ function ProcessingState({
         Not analyzed yet
       </p>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        {isPdf
-          ? "This PDF has been uploaded but has not been analyzed."
-          : "This document has been uploaded. This phase currently analyzes PDF documents only."}
+        {canAnalyze
+          ? "This document has been uploaded but has not been analyzed."
+          : "This document has been uploaded. This file type is not supported for analysis."}
       </p>
-      {isPdf ? (
+      {canAnalyze ? (
         <div className="mt-5 flex justify-center">
           <AnalyzeDocumentButton
             documentId={documentId}
@@ -249,7 +249,7 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
 
   const row = document as DocumentDetailRow;
   const result = firstResult(row.document_results);
-  const isPdf = row.mime_type === PDF_MIME_TYPE;
+  const canAnalyze = isSupportedAnalysisMimeType(row.mime_type);
   const isProcessed = row.status === "processed";
   const detectedType =
     result?.detected_document_type?.trim() ||
@@ -349,7 +349,7 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
         ) : (
           <ProcessingState
             status={row.status}
-            isPdf={isPdf}
+            canAnalyze={canAnalyze}
             documentId={row.id}
             fileName={row.file_name}
             mimeType={row.mime_type}

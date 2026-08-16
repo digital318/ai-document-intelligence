@@ -46,17 +46,44 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   failed: "Failed",
 };
 
-/** MIME type processed by Phase 6A document analysis. */
 export const PDF_MIME_TYPE = "application/pdf";
+export const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const TEXT_MIME_TYPE = "text/plain";
+export const JPEG_MIME_TYPE = "image/jpeg";
+export const PNG_MIME_TYPE = "image/png";
+export const WEBP_MIME_TYPE = "image/webp";
+
+/** MIME types processed by Phase 6C document analysis. */
+export const ANALYSIS_MIME_TYPES = [
+  PDF_MIME_TYPE,
+  DOCX_MIME_TYPE,
+  TEXT_MIME_TYPE,
+  JPEG_MIME_TYPE,
+  PNG_MIME_TYPE,
+  WEBP_MIME_TYPE,
+] as const;
+
+export type AnalysisMimeType = (typeof ANALYSIS_MIME_TYPES)[number];
+
+const ANALYSIS_MIME_TYPE_SET: ReadonlySet<string> = new Set(ANALYSIS_MIME_TYPES);
+
+/**
+ * True when the trusted documents.mime_type is supported for AI analysis.
+ * Filename extensions are never used as the authorization decision.
+ */
+export function isSupportedAnalysisMimeType(
+  mimeType: string,
+): mimeType is AnalysisMimeType {
+  return ANALYSIS_MIME_TYPE_SET.has(mimeType);
+}
 
 /** Maps each URL `type` filter value to the MIME types it covers. */
 export const TYPE_FILTERS = {
   pdf: [PDF_MIME_TYPE],
-  word: [
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ],
-  image: ["image/jpeg", "image/png", "image/webp"],
-  text: ["text/plain"],
+  word: [DOCX_MIME_TYPE],
+  image: [JPEG_MIME_TYPE, PNG_MIME_TYPE, WEBP_MIME_TYPE],
+  text: [TEXT_MIME_TYPE],
 } as const satisfies Record<string, readonly string[]>;
 
 export type DocumentTypeFilter = keyof typeof TYPE_FILTERS;
@@ -69,13 +96,12 @@ export const TYPE_FILTER_LABELS: Record<DocumentTypeFilter, string> = {
 };
 
 const MIME_TYPE_LABELS: Record<string, string> = {
-  "application/pdf": "PDF",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    "Word",
-  "image/jpeg": "JPEG",
-  "image/png": "PNG",
-  "image/webp": "WebP",
-  "text/plain": "Text",
+  [PDF_MIME_TYPE]: "PDF",
+  [DOCX_MIME_TYPE]: "Word",
+  [JPEG_MIME_TYPE]: "JPEG",
+  [PNG_MIME_TYPE]: "PNG",
+  [WEBP_MIME_TYPE]: "WebP",
+  [TEXT_MIME_TYPE]: "Text",
 };
 
 /** Friendly label for a MIME type, e.g. "application/pdf" -> "PDF". */

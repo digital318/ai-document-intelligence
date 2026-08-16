@@ -40,7 +40,30 @@ The authenticated dashboard at `/` reads live per-user data through the cookie-b
 - **Metrics** — `public.get_dashboard_metrics()` (see `supabase/migrations/20260814_phase_5d_dashboard_metrics.sql`) returns `total_documents`, `processed_documents`, `ai_requests_this_month`, and `storage_bytes` for `auth.uid()` only. The function is `SECURITY INVOKER`, filters `user_id = auth.uid()`, and is executable only by `authenticated`.
 - **Recent documents** — the five newest rows from `public.documents` (name, MIME type, size, status, created time). Items link to `/documents`; storage paths are never exposed.
 - **Recent activity** — derived in application code from recent document uploads and `public.document_processing_jobs` (queued / started / completed / failed). There is no separate activity table; deleting a document may remove its upload entry from this feed.
-- **AI Requests** currently counts processing-job rows created this calendar month. Actual OpenAI processing, OCR, embeddings, and document chat are deferred to a later phase, so this metric is expected to stay `0` until then.
+- **AI Requests** counts processing-job rows created this calendar month, regardless of file format.
+
+## Phase 6C — Multi-Format Document Analysis
+
+Authenticated users can analyze uploaded documents from the library or the analysis page. The browser sends only the document UUID. The server loads `storage_path` and `mime_type` from the RLS-protected `public.documents` row, downloads the private Storage object, and runs a single processing pipeline for every supported type.
+
+**Supported formats**
+
+- PDF (`application/pdf`)
+- Word (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+- Text (`text/plain`)
+- JPEG (`image/jpeg`)
+- PNG (`image/png`)
+- WebP (`image/webp`)
+
+**How each format is analyzed**
+
+- **PDF** — uploaded to OpenAI as a temporary `user_data` file and sent as `input_file`. Analysis can use both extracted text and page-image understanding.
+- **DOCX / TXT** — uploaded the same way as `input_file` with purpose `user_data`. Analysis is based on extracted textual content. Embedded images and charts inside non-PDF files are **not** analyzed in this phase.
+- **JPEG / PNG / WebP** — uploaded as a temporary vision file and sent as `input_image` with `detail: "original"` so small text and layout are preserved as accurately as practical.
+
+Every attempt writes `public.document_processing_jobs`. The latest structured result is upserted into `public.document_results`. Temporary OpenAI file IDs are deleted after success or failure and are never stored in the database or sent to the browser.
+
+The dashboard Processed, AI Requests, Recent Activity, and Storage Used metrics include every supported format. OCR libraries, embeddings, vector search, and document chat are still out of scope.
 
 ## Learn More
 

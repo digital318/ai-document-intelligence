@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { toFile } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { isValidUuid, PDF_MIME_TYPE } from "@/lib/documents";
+import { isSupportedAnalysisMimeType, isValidUuid } from "@/lib/documents";
 import { getDocumentModel, getOpenAIClient } from "@/lib/openai/client";
+import {
+  cleanupTemporaryOpenAIFile,
+  DocumentInputError,
+  prepareOpenAIDocumentInput,
+} from "@/lib/openai/document-input";
 import {
   DOCUMENT_ANALYSIS_INSTRUCTIONS,
   DOCUMENT_ANALYSIS_PROMPT_VERSION,
@@ -19,8 +23,8 @@ export const maxDuration = 300;
 
 const GENERIC_ERROR = "Unable to analyze this document. Please try again.";
 const NOT_FOUND_ERROR = "Document not found";
-const PDF_ONLY_ERROR =
-  "This phase currently processes PDF documents only.";
+const UNSUPPORTED_TYPE_ERROR =
+  "This file type is not supported for analysis.";
 const CONFLICT_ERROR = "This document is already being analyzed.";
 
 const CLAIMABLE_STATUSES = [
@@ -107,20 +111,22 @@ async function markDocumentFailed(
   }
 }
 
-async function cleanupOpenAIFile(fileId: string) {
-  try {
-    const openai = getOpenAIClient();
-    await openai.files.delete(fileId);
-  } catch (error) {
-    logProcessError("OpenAI file cleanup failed", error);
+function diagnosticFromError(error: unknown): string {
+  if (
+    error instanceof ProcessingFailure ||
+    error instanceof ConcurrentProcessingFailure ||
+    error instanceof DocumentInputError
+  ) {
+    return error.message;
   }
+  return "Unexpected processing failure";
 }
 
 /**
  * POST /api/documents/[id]/process
  *
- * User-triggered PDF analysis. The browser sends only the document UUID.
- * storage_path is loaded from the RLS-protected documents row.
+ * User-triggered multi-format analysis. The browser sends only the document
+ * UUID. storage_path and mime_type are loaded from the RLS-protected row.
  */
 export async function POST(
   _request: Request,
@@ -149,8 +155,8 @@ export async function POST(
     return jsonError(NOT_FOUND_ERROR, 404);
   }
 
-  if (document.mime_type !== PDF_MIME_TYPE) {
-    return jsonError(PDF_ONLY_ERROR, 400);
+  if (!isSupportedAnalysisMimeType(document.mime_type)) {
+    return jsonError(UNSUPPORTED_TYPE_ERROR, 400);
   }
 
   if (document.status === "queued" || document.status === "processing") {
@@ -227,21 +233,14 @@ export async function POST(
       throw new ProcessingFailure("OpenAI client initialization failed");
     }
 
-    const pdfBytes = await fileBlob.arrayBuffer();
-    const uploadable = await toFile(pdfBytes, document.file_name, {
-      type: PDF_MIME_TYPE,
+    const fileBytes = await fileBlob.arrayBuffer();
+    const preparedInput = await prepareOpenAIDocumentInput({
+      openai,
+      bytes: fileBytes,
+      fileName: document.file_name,
+      mimeType: document.mime_type,
     });
-
-    try {
-      const uploadedFile = await openai.files.create({
-        file: uploadable,
-        purpose: "user_data",
-      });
-      openaiFileId = uploadedFile.id;
-    } catch (error) {
-      logProcessError("OpenAI file upload failed", error);
-      throw new ProcessingFailure("OpenAI file upload failed");
-    }
+    openaiFileId = preparedInput.openaiFileId;
 
     let parsed: DocumentAnalysis | null = null;
     try {
@@ -252,10 +251,7 @@ export async function POST(
           {
             role: "user",
             content: [
-              {
-                type: "input_file",
-                file_id: openaiFileId,
-              },
+              preparedInput.contentPart,
               {
                 type: "input_text",
                 text: DOCUMENT_ANALYSIS_USER_MESSAGE,
@@ -269,12 +265,12 @@ export async function POST(
       });
       parsed = response.output_parsed;
     } catch (error) {
-      logProcessError("OpenAI analysis failed", error);
-      throw new ProcessingFailure("OpenAI analysis failed");
+      logProcessError("OpenAI response failed", error);
+      throw new ProcessingFailure("OpenAI response failed");
     }
 
     if (!parsed) {
-      throw new ProcessingFailure("Structured output was empty");
+      throw new ProcessingFailure("Structured result missing");
     }
 
     const extractedFields = parsed.extracted_fields.map((field) => ({
@@ -301,8 +297,8 @@ export async function POST(
     );
 
     if (resultError) {
-      logProcessError("Failed to save analysis result", resultError);
-      throw new ProcessingFailure("Failed to save analysis result");
+      logProcessError("Result persistence failed", resultError);
+      throw new ProcessingFailure("Result persistence failed");
     }
 
     const { error: documentCompleteError } = await supabase
@@ -338,15 +334,12 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const diagnostic =
-      error instanceof ProcessingFailure ||
-      error instanceof ConcurrentProcessingFailure
-        ? error.message
-        : "Unexpected processing failure";
+    const diagnostic = diagnosticFromError(error);
 
     if (
       !(error instanceof ProcessingFailure) &&
-      !(error instanceof ConcurrentProcessingFailure)
+      !(error instanceof ConcurrentProcessingFailure) &&
+      !(error instanceof DocumentInputError)
     ) {
       logProcessError("Processing failed", error);
     }
@@ -367,8 +360,6 @@ export async function POST(
 
     return jsonError(GENERIC_ERROR, 500);
   } finally {
-    if (openaiFileId) {
-      await cleanupOpenAIFile(openaiFileId);
-    }
+    await cleanupTemporaryOpenAIFile(openaiFileId);
   }
 }
