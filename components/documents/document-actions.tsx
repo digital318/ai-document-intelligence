@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -14,17 +14,32 @@ import { deleteDocument } from "@/app/documents/actions";
 const ICON_BUTTON =
   "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 
+const LABELED_BUTTON =
+  "inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800";
+
+const LABELED_DELETE_BUTTON =
+  "inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-400";
+
 interface DocumentActionsProps {
   documentId: string;
   fileName: string;
+  variant?: "icons" | "labeled";
+  /** Extra controls rendered between Download and Delete (e.g. Analyze). */
+  children?: ReactNode;
 }
 
 /**
  * View / Download / Delete actions for a document row. Only the document id
  * ever reaches the browser — storage paths stay on the server.
  */
-export function DocumentActions({ documentId, fileName }: DocumentActionsProps) {
+export function DocumentActions({
+  documentId,
+  fileName,
+  variant = "icons",
+  children,
+}: DocumentActionsProps) {
   const router = useRouter();
+  const labeled = variant === "labeled";
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -70,33 +85,47 @@ export function DocumentActions({ documentId, fileName }: DocumentActionsProps) 
 
   return (
     <>
-      <div className="flex items-center justify-end gap-1">
+      <div
+        className={
+          labeled
+            ? "flex flex-wrap items-center gap-2"
+            : "flex items-center justify-end gap-1"
+        }
+      >
         <a
           href={`/api/documents/${documentId}/view`}
           target="_blank"
           rel="noopener noreferrer"
-          className={ICON_BUTTON}
-          title="View"
-          aria-label={`View ${fileName}`}
+          className={labeled ? LABELED_BUTTON : ICON_BUTTON}
+          title="View original"
+          aria-label={`View original ${fileName}`}
         >
           <Eye className="h-4 w-4" />
+          {labeled ? "View Original" : null}
         </a>
         <a
           href={`/api/documents/${documentId}/download`}
-          className={ICON_BUTTON}
+          className={labeled ? LABELED_BUTTON : ICON_BUTTON}
           title="Download"
           aria-label={`Download ${fileName}`}
         >
           <Download className="h-4 w-4" />
+          {labeled ? "Download" : null}
         </a>
+        {children}
         <button
           type="button"
           onClick={() => setConfirmOpen(true)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+          className={
+            labeled
+              ? LABELED_DELETE_BUTTON
+              : "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+          }
           title="Delete"
           aria-label={`Delete ${fileName}`}
         >
           <Trash2 className="h-4 w-4" />
+          {labeled ? "Delete" : null}
         </button>
       </div>
 

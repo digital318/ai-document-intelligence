@@ -29,6 +29,23 @@ export const STATUS_LABELS: Record<DocumentStatus, string> = {
   failed: "Failed",
 };
 
+/** Matches the `document_processing_jobs.status` CHECK constraint. */
+export const JOB_STATUSES = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+] as const;
+
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  queued: "Queued",
+  running: "Processing",
+  completed: "Completed",
+  failed: "Failed",
+};
+
 /** MIME type processed by Phase 6A document analysis. */
 export const PDF_MIME_TYPE = "application/pdf";
 

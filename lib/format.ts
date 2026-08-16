@@ -46,6 +46,58 @@ export function formatConfidence(score: number | null | undefined): string {
   return `${Math.round(clamped * 100)}%`;
 }
 
+export type ConfidenceLevel = "high" | "medium" | "low";
+
+/**
+ * Friendly confidence category from a 0–1 score.
+ * High: >= 0.90, Medium: >= 0.70 and < 0.90, Low: < 0.70.
+ */
+export function getConfidenceLevel(
+  score: number | null | undefined,
+): ConfidenceLevel | null {
+  if (typeof score !== "number" || !Number.isFinite(score)) return null;
+  const clamped = Math.min(1, Math.max(0, score));
+  if (clamped >= 0.9) return "high";
+  if (clamped >= 0.7) return "medium";
+  return "low";
+}
+
+export const CONFIDENCE_LEVEL_LABELS: Record<ConfidenceLevel, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+/**
+ * Turns stored field names into a readable label.
+ * Examples: policy_number → Policy Number, effectiveDate → Effective Date.
+ */
+export function formatFieldLabel(fieldName: string): string {
+  const normalized = fieldName
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return fieldName;
+
+  return normalized
+    .split(" ")
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (lower === "id") return "ID";
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
+
+/** Friendly label for a processing job type, e.g. initial_analysis → Initial Analysis. */
+export function formatJobType(jobType: string): string {
+  const label = formatFieldLabel(jobType);
+  return label.trim().length > 0 ? label : jobType;
+}
+
 /** Readable local date and time, e.g. "Aug 14, 2026, 5:53 PM". */
 export function formatDateTime(isoDate: string): string {
   const date = new Date(isoDate);

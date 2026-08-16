@@ -53,7 +53,10 @@ export function DocumentTable({
                   <div className="flex items-center gap-2.5">
                     <FileText className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-zinc-900 dark:text-zinc-50">
+                      <p
+                        className="truncate font-medium text-zinc-900 dark:text-zinc-50"
+                        title={doc.file_name}
+                      >
                         {doc.file_name}
                       </p>
                       {doc.document_type ? (
