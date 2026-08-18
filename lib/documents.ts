@@ -46,6 +46,45 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   failed: "Failed",
 };
 
+/** Processing-job type used for vector indexing. Independent of analysis. */
+export const EMBEDDING_INDEX_JOB_TYPE = "embedding_index";
+
+/** Matches the `documents.embedding_status` CHECK constraint. */
+export const EMBEDDING_STATUSES = [
+  "not_indexed",
+  "indexing",
+  "indexed",
+  "failed",
+] as const;
+
+export type EmbeddingStatus = (typeof EMBEDDING_STATUSES)[number];
+
+export const EMBEDDING_STATUS_LABELS: Record<EmbeddingStatus, string> = {
+  not_indexed: "Not indexed",
+  indexing: "Indexing",
+  indexed: "Ready for Q&A",
+  failed: "Indexing failed",
+};
+
+export function isEmbeddingStatus(value: string): value is EmbeddingStatus {
+  return (EMBEDDING_STATUSES as readonly string[]).includes(value);
+}
+
+/** Document analysis statuses that are allowed to build a vector index. */
+export const INDEXABLE_DOCUMENT_STATUSES = [
+  "processed",
+  "needs_review",
+] as const;
+
+export type IndexableDocumentStatus =
+  (typeof INDEXABLE_DOCUMENT_STATUSES)[number];
+
+export function isIndexableDocumentStatus(
+  status: string,
+): status is IndexableDocumentStatus {
+  return (INDEXABLE_DOCUMENT_STATUSES as readonly string[]).includes(status);
+}
+
 export const PDF_MIME_TYPE = "application/pdf";
 export const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";

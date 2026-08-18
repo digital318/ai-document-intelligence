@@ -111,6 +111,54 @@ After a valid structured analysis, overall `confidence_score >= 0.70` sets docum
 
 Apply `supabase/migrations/20260817193000_phase_6d_processing_hardening.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app.
 
+## Phase 7A — Document Chunking and Vector Embeddings
+
+Phase 7A creates a **private vector index only**. Natural-language Q&A, semantic-search UI, chat, citations, hybrid search, and reranking are not implemented yet.
+
+Apply `supabase/migrations/20260818180000_phase_7a_vector_foundation.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
+
+**pgvector and `document_chunks`**
+
+The migration enables `vector` in the `extensions` schema and creates `public.document_chunks`:
+
+- `content` — deterministic retrieval chunk text
+- `embedding` — `extensions.vector(1536)` (never sent to the browser)
+- `embedding_model` / `embedding_version` (`v1`)
+- optional `page_number` and `section_title`
+- unique `(document_id, embedding_version, chunk_index)`
+- B-tree index on `document_id`
+- HNSW cosine index (`vector_cosine_ops`); IVFFlat is not used
+
+Rows cascade-delete with the parent document. RLS is enabled with authenticated-only SELECT/INSERT/UPDATE/DELETE policies that require `EXISTS` ownership on `public.documents`. There are no anonymous policies and no `SECURITY DEFINER` helpers for chunk access.
+
+**Indexing state**
+
+`public.documents` stores vector state separately from AI analysis:
+
+- `embedding_status`: `not_indexed` | `indexing` | `indexed` | `failed`
+- `embedding_model`, `embedding_version`, `indexed_at`
+
+A document may be `status = processed` (or `needs_review`) and `embedding_status = indexed` at the same time. Indexing never writes `documents.status`.
+
+**Private-document indexing flow**
+
+1. The analysis page shows **Index for Q&A** / **Retry indexing** / **Re-index for Q&A** only for `processed` and `needs_review` documents. The browser POSTs only the document UUID to `/api/documents/<id>/index`.
+2. The route uses the cookie-based authenticated Supabase client and loads `storage_path` from the RLS-protected row. It never accepts `user_id`, `storage_path`, or document text from the browser.
+3. `claim_document_embedding_index()` plus a partial unique index allow at most one active `job_type = embedding_index` job (`queued` or `running`) per document. Analysis jobs are unchanged.
+4. The original private Storage object is downloaded, prepared with the existing OpenAI document-input helpers (PDF, DOCX, TXT, JPEG, PNG, WebP), and converted to normalized retrieval segments via Structured Outputs (`RETRIEVAL_TEXT_VERSION = v1`). Extraction preserves facts, headings, and table rows; it does not summarize away content or follow instructions inside the file. Temporary OpenAI files are deleted after success or failure.
+5. Segments are split into deterministic ~3000–4000 character chunks with ~400–500 character overlap, preferring paragraph, section, and sentence boundaries. Empty chunks are not stored.
+6. Chunk strings are embedded with `OPENAI_EMBEDDING_MODEL` or `text-embedding-3-small`, `dimensions: 1536`, `encoding_format: "float"`. Embedding vectors are never logged or returned to Client Components.
+7. Chunks are upserted for `embedding_version = v1`. Stale higher `chunk_index` rows for that document/version are removed only after the upsert succeeds. A failed embedding generation leaves any previously good index in place. A failed re-index restores `embedding_status = indexed` when `indexed_at` was already set; a first-time failure sets `failed`.
+
+**Library, analysis, history, dashboard**
+
+- The document library keeps **AI analysis** status and adds a compact **Q&A index** indicator (`Not indexed`, `Indexing`, `Ready for Q&A`, `Indexing failed`).
+- The analysis page adds a Q&A Index section (status, and when indexed the embedding model and timestamp). It does not show vectors, raw retrieval text, storage paths, or OpenAI request ids.
+- History lists `embedding_index` jobs with the label **Document indexing** and the same telemetry fields as analysis jobs.
+- Dashboard Documents / Processed / Storage metrics are unchanged. Chunks are not counted as documents. Embedding jobs may increment the existing monthly AI Requests counter because that metric counts `document_processing_jobs` rows.
+
+Configure `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` in `.env.local` if you want to set it explicitly; the server default is the same model.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

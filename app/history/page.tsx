@@ -24,7 +24,7 @@ export default async function HistoryPage() {
           History
         </h2>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          The 25 most recent analysis attempts across your documents, newest
+          The 25 most recent processing attempts across your documents, newest
           first.
         </p>
       </div>

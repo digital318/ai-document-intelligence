@@ -25,6 +25,9 @@ export const FAILURE_CODES = [
   "openai_response",
   "structured_output",
   "result_persistence",
+  "empty_retrieval",
+  "embedding_generation",
+  "chunk_persistence",
   "unknown",
 ] as const;
 
@@ -73,8 +76,45 @@ export function userMessageForFailureCode(code: FailureCode): string {
     case "storage_download":
     case "structured_output":
     case "result_persistence":
+    case "empty_retrieval":
+    case "embedding_generation":
+    case "chunk_persistence":
     case "unknown":
       return USER_MESSAGE_INCOMPLETE;
+  }
+}
+
+const INDEXING_MESSAGE_TEMPORARY =
+  "Indexing is temporarily unavailable. Please try again.";
+const INDEXING_MESSAGE_UNAVAILABLE = "Indexing service is unavailable.";
+const INDEXING_MESSAGE_INCOMPLETE =
+  "Unable to complete indexing. Please try again.";
+
+/**
+ * User-facing indexing error. Does not include diagnostics, paths, or
+ * provider bodies.
+ */
+export function userMessageForIndexingFailureCode(code: FailureCode): string {
+  switch (code) {
+    case "openai_rate_limit":
+    case "openai_timeout":
+    case "openai_connection":
+    case "openai_server":
+      return INDEXING_MESSAGE_TEMPORARY;
+    case "openai_auth":
+    case "openai_permission":
+      return INDEXING_MESSAGE_UNAVAILABLE;
+    case "openai_bad_request":
+    case "openai_file_upload":
+    case "openai_response":
+    case "storage_download":
+    case "structured_output":
+    case "result_persistence":
+    case "empty_retrieval":
+    case "embedding_generation":
+    case "chunk_persistence":
+    case "unknown":
+      return INDEXING_MESSAGE_INCOMPLETE;
   }
 }
 

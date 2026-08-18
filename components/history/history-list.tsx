@@ -79,7 +79,8 @@ export function HistoryList({ jobs }: { jobs: HistoryJobItem[] }) {
             No processing history yet
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Analysis attempts will appear here after you process a document.
+            Processing attempts will appear here after you analyze or index a
+            document.
           </p>
         </div>
       </div>

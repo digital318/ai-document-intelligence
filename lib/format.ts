@@ -92,8 +92,14 @@ export function formatFieldLabel(fieldName: string): string {
     .join(" ");
 }
 
+const JOB_TYPE_LABELS: Record<string, string> = {
+  embedding_index: "Document indexing",
+};
+
 /** Friendly label for a processing job type, e.g. initial_analysis → Initial Analysis. */
 export function formatJobType(jobType: string): string {
+  const mapped = JOB_TYPE_LABELS[jobType];
+  if (mapped) return mapped;
   const label = formatFieldLabel(jobType);
   return label.trim().length > 0 ? label : jobType;
 }

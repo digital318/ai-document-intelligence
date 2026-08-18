@@ -72,3 +72,22 @@ export function getDocumentModel(): string {
     ? configured
     : DEFAULT_DOCUMENT_MODEL;
 }
+
+const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+
+/** Output dimensionality requested from the embeddings API. */
+export const EMBEDDING_DIMENSIONS = 1536;
+
+/** Chunk/embedding schema version persisted on document_chunks. */
+export const EMBEDDING_VERSION = "v1";
+
+/**
+ * Model used for vector embeddings.
+ * Override with OPENAI_EMBEDDING_MODEL; otherwise text-embedding-3-small.
+ */
+export function getEmbeddingModel(): string {
+  const configured = process.env.OPENAI_EMBEDDING_MODEL?.trim();
+  return configured && configured.length > 0
+    ? configured
+    : DEFAULT_EMBEDDING_MODEL;
+}

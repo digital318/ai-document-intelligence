@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 const DOCUMENT_COLUMNS =
-  "id, file_name, mime_type, file_size_bytes, document_type, status, created_at, updated_at";
+  "id, file_name, mime_type, file_size_bytes, document_type, status, embedding_status, created_at, updated_at";
 
 interface DocumentsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

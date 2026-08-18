@@ -1,5 +1,6 @@
 import { AlertCircle, Clock } from "lucide-react";
 import {
+  EMBEDDING_INDEX_JOB_TYPE,
   JOB_STATUS_LABELS,
   type JobStatus,
 } from "@/lib/documents";
@@ -130,7 +131,7 @@ export function ProcessingHistory({
           Processing history
         </h3>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Each analysis attempt is listed, newest first.
+          Each processing attempt is listed, newest first.
         </p>
       </div>
 
@@ -193,7 +194,9 @@ export function ProcessingHistory({
               {job.failed ? (
                 <p className="mt-2 flex items-start gap-1.5 text-sm text-red-700 dark:text-red-400">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  Analysis attempt failed.
+                  {job.jobType === EMBEDDING_INDEX_JOB_TYPE
+                    ? "Indexing attempt failed."
+                    : "Analysis attempt failed."}
                 </p>
               ) : null}
             </li>

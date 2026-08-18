@@ -1,3 +1,4 @@
+import { EMBEDDING_INDEX_JOB_TYPE } from "@/lib/documents";
 import { createClient } from "@/lib/supabase/server";
 
 const RECENT_LIMIT = 5;
@@ -192,34 +193,43 @@ function relatedFileName(
 
 function activityFromJob(job: ProcessingJobRow): DashboardActivityItem | null {
   const fileName = relatedFileName(job.documents);
+  const indexing = job.job_type === EMBEDDING_INDEX_JOB_TYPE;
 
   switch (job.status) {
     case "queued":
       return {
         id: `job:${job.id}`,
         kind: "processing_queued",
-        text: `${fileName} queued for processing`,
+        text: indexing
+          ? `${fileName} queued for indexing`
+          : `${fileName} queued for processing`,
         timestamp: job.created_at,
       };
     case "running":
       return {
         id: `job:${job.id}`,
         kind: "processing_started",
-        text: `${fileName} processing started`,
+        text: indexing
+          ? `${fileName} indexing started`
+          : `${fileName} processing started`,
         timestamp: job.started_at ?? job.created_at,
       };
     case "completed":
       return {
         id: `job:${job.id}`,
         kind: "processing_completed",
-        text: `${fileName} processing completed`,
+        text: indexing
+          ? `${fileName} indexing completed`
+          : `${fileName} processing completed`,
         timestamp: job.completed_at ?? job.created_at,
       };
     case "failed":
       return {
         id: `job:${job.id}`,
         kind: "processing_failed",
-        text: `${fileName} processing failed`,
+        text: indexing
+          ? `${fileName} indexing failed`
+          : `${fileName} processing failed`,
         timestamp: job.completed_at ?? job.created_at,
       };
     default:

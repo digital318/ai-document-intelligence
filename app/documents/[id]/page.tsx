@@ -9,6 +9,7 @@ import {
   type DocumentAnalysisResultData,
 } from "@/components/documents/document-analysis-view";
 import { DocumentDetails } from "@/components/documents/document-details";
+import { DocumentQaIndex } from "@/components/documents/document-qa-index";
 import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
 import {
   ProcessingHistory,
@@ -17,6 +18,7 @@ import {
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
   formatMimeTypeLabel,
+  isIndexableDocumentStatus,
   isSupportedAnalysisMimeType,
   isValidUuid,
 } from "@/lib/documents";
@@ -35,6 +37,9 @@ const DOCUMENT_DETAIL_COLUMNS = `
   document_type,
   status,
   page_count,
+  embedding_status,
+  embedding_model,
+  indexed_at,
   created_at,
   updated_at,
   document_results (
@@ -60,6 +65,9 @@ interface DocumentDetailRow {
   document_type: string | null;
   status: string;
   page_count: number | null;
+  embedding_status: string | null;
+  embedding_model: string | null;
+  indexed_at: string | null;
   created_at: string;
   updated_at: string;
   document_results:
@@ -373,6 +381,18 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
             mimeType={row.mime_type}
           />
         )}
+
+        {isIndexableDocumentStatus(row.status) ? (
+          <DocumentQaIndex
+            documentId={row.id}
+            fileName={row.file_name}
+            mimeType={row.mime_type}
+            status={row.status}
+            embeddingStatus={row.embedding_status}
+            embeddingModel={row.embedding_model}
+            indexedAt={row.indexed_at}
+          />
+        ) : null}
 
         <DocumentDetails
           fileName={row.file_name}
