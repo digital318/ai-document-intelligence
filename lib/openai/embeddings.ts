@@ -5,6 +5,7 @@ import {
   EMBEDDING_DIMENSIONS,
   EMBEDDING_VERSION,
   getEmbeddingModel,
+  getOpenAIClient,
 } from "@/lib/openai/client";
 import { ProcessingFailure } from "@/lib/openai/errors";
 import { toNonNegativeInt } from "@/lib/format";
@@ -161,4 +162,36 @@ export async function embedTexts(params: {
   }
 
   return { embeddings, model: modelName, usage };
+}
+
+/**
+ * Embeds a single search question with the same model and dimensions used
+ * for document indexing. Returns one 1536-d float vector. The vector is
+ * never logged.
+ */
+export async function embedQuery(query: string): Promise<number[]> {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    throw new ProcessingFailure(
+      "embedding_generation",
+      "Empty embedding input",
+    );
+  }
+
+  const result = await embedTexts({
+    openai: getOpenAIClient(),
+    texts: [trimmed],
+    requestId: crypto.randomUUID(),
+  });
+
+  const vector = result.embeddings[0];
+  if (!vector) {
+    throw new ProcessingFailure(
+      "embedding_generation",
+      "Embedding result count mismatch",
+    );
+  }
+
+  assertFiniteVector(vector);
+  return vector;
 }

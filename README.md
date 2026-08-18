@@ -159,6 +159,49 @@ A document may be `status = processed` (or `needs_review`) and `embedding_status
 
 Configure `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` in `.env.local` if you want to set it explicitly; the server default is the same model.
 
+## Phase 7B — Secure Semantic Document Retrieval
+
+Phase 7A built the **index**. Phase 7B adds **semantic retrieval** for one indexed document. Phase 7C will add grounded question answering. This phase does **not** generate a natural-language answer, Ask AI UI, chat history, citations UI, library-wide search, hybrid keyword search, or reranking.
+
+Apply `supabase/migrations/20260818193000_phase_7b_semantic_retrieval.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
+
+**Query embeddings**
+
+A search question is embedded server-side with the same configuration as document indexing: `OPENAI_EMBEDDING_MODEL` or `text-embedding-3-small`, `dimensions: 1536`, `encoding_format: "float"`. The returned vector is never logged and is never sent to a Client Component.
+
+**Semantic similarity**
+
+Chunks are ranked with pgvector **cosine distance** (`embedding <=> query_embedding`). The API returns **cosine similarity**:
+
+`similarity = 1 - cosine_distance`
+
+Scores are not fabricated. Retrieval is document-scoped: only chunks for the requested document are searched.
+
+**RPC**
+
+`public.match_document_chunks(p_document_id, p_query_embedding, p_match_threshold, p_match_count)` is `SECURITY INVOKER` with an empty `search_path`. It joins `public.document_chunks` to `public.documents` and requires `documents.id = p_document_id` and `documents.user_id = auth.uid()`. Existing `document_chunks` RLS still applies. Chunks must also match the parent document's `embedding_model` and `embedding_version`. Execute is granted only to `authenticated`. Embedding vectors are not returned. `p_match_count` is clamped to 1–10.
+
+**Server-controlled thresholds**
+
+Match count and similarity threshold are not accepted from the client:
+
+- `RAG_MATCH_COUNT = 5`
+- `RAG_SIMILARITY_THRESHOLD = 0.35` (initial project tuning value, not a universal semantic-search threshold)
+
+Queries must be 3–1000 characters after trim.
+
+**Authenticated / RLS search**
+
+`POST /api/documents/<id>/search` accepts `{ "query": "What is the policy number?" }` only. The cookie-based server Supabase client loads the document under RLS. Missing or inaccessible documents return HTTP 404. Search queries are not persisted and are not written to `document_processing_jobs`, so they do not increment the dashboard AI Requests metric.
+
+**Model and version compatibility**
+
+If `documents.embedding_model` does not match the configured query model, or `embedding_version` does not match the current index version (`v1`), search is refused with HTTP 409 (`The document index is out of date. Re-index the document before searching.`). A document that is not `embedding_status = indexed` (and `processed` or `needs_review`) returns HTTP 409 asking the user to index first. Different embedding models are never compared.
+
+**Response**
+
+HTTP 200 returns the trimmed query and up to five matches (`chunkId`, `chunkIndex`, `content`, `pageNumber`, `sectionTitle`, `similarity`), highest similarity first. `pageNumber` / `sectionTitle` are preserved from Phase 7A when present; they are `null` when unknown. Zero matches is a successful empty list, not an error.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
