@@ -65,6 +65,52 @@ Every attempt writes `public.document_processing_jobs`. The latest structured re
 
 The dashboard Processed, AI Requests, Recent Activity, and Storage Used metrics include every supported format. OCR libraries, embeddings, vector search, and document chat are still out of scope.
 
+## Phase 6D — Processing Hardening, Quality Controls, and Observability
+
+Phase 6D hardens the existing analysis pipeline. It does not add file types, change the configured model, introduce embeddings, vector search, document chat, OCR libraries, external queues, or OpenAI background mode.
+
+**Atomic processing claims**
+
+`public.claim_document_processing(p_document_id uuid)` claims an owned document in a single PostgreSQL transaction. It updates `public.documents.status` to `queued` only when the current status is `uploaded`, `failed`, `processed`, or `needs_review` and `user_id = auth.uid()`, then inserts one `queued` row in `public.document_processing_jobs`. The first concurrent request receives the new job UUID. The second receives no job id and the process route responds with HTTP 409 (`This document is already being processed.`). The function is `SECURITY INVOKER` with `search_path` emptied; RLS still applies. Execute is granted only to `authenticated`.
+
+**OpenAI SDK retries and timeout**
+
+The official OpenAI Node SDK is configured with `maxRetries: 2` and a request timeout of `OPENAI_REQUEST_TIMEOUT_MS` when that value is a positive integer, otherwise 120000 milliseconds. Invalid timeout configuration is ignored. There is no additional application-level retry loop. Authentication, permission, malformed-request, and structured-output validation failures are not retried beyond SDK defaults (the SDK does not retry those classes of error).
+
+**`store: false`**
+
+Document-analysis Responses API requests set `store: false`. Structured business results continue to be persisted in `public.document_results`. OpenAI Response objects and response ids are not stored in application tables. Temporary OpenAI files are still deleted after success or failure.
+
+**Request correlation**
+
+Each analysis call sends the processing-job UUID as an `X-Client-Request-Id` header through the SDK's per-request `headers` option. After a successful response, `response._request_id` is stored in `document_processing_jobs.openai_request_id` for operational troubleshooting. That value is not shown on document or History pages. Server logs may include the job UUID, OpenAI request id, and failure code. Logs do not include document contents, tokens, API keys, passwords, cookies, or Authorization headers.
+
+**Token usage and duration telemetry**
+
+When the Responses API includes usage metadata, `input_tokens`, `output_tokens`, and `total_tokens` are stored on the processing job together with the configured `model_name`. Missing usage does not fail an otherwise successful analysis. Monetary cost is not calculated. Server-side `processing_duration_ms` is measured after a successful claim and persisted on completion or failure.
+
+**Safe failure categories**
+
+Failed jobs store a machine-readable `failure_code` such as `openai_auth`, `openai_rate_limit`, `openai_timeout`, `structured_output`, or `result_persistence`, plus a concise `error_message` diagnostic. Raw provider bodies, stack traces, credentials, and document content are not persisted. The browser receives only generic messages, for example:
+
+- Rate limit or temporary provider problem: `Analysis is temporarily unavailable. Please try again.`
+- Configuration or authentication problem: `Analysis service is unavailable.`
+- Structured-output or result failure: `Unable to complete analysis. Please try again.`
+
+**Previous successful analysis is preserved**
+
+If a document already has a valid `document_results` row and the user runs Analyze Again, a failed new attempt marks only that processing job as failed. The previous result row is left untouched and remains viewable. Document status is restored to the previous stable value (`processed` or `needs_review`). A document that has never had a successful result is set to `failed`.
+
+**Confidence-based `needs_review`**
+
+After a valid structured analysis, overall `confidence_score >= 0.70` sets document status to `processed`. A lower score sets `needs_review`. The processing job is still `completed` because the AI request succeeded. Field values are not rewritten. Documents in `needs_review` remain fully usable (view analysis, analyze again, view original, download, delete). The analysis page shows a restrained review notice; it does not treat model confidence as a guarantee of correctness. All analyzed documents also show: `AI-generated analysis may contain errors. Verify important information against the original document.`
+
+**History page**
+
+`/history` is an authenticated Server Component that lists the 25 most recent `document_processing_jobs` rows for the current user, with related document names, through the cookie-based Supabase client and RLS. It shows attempt status, job type, created and completed times, duration, model, and token usage when available. Document names link to the analysis page when the document still exists. It does not expose storage paths, OpenAI request ids, error messages, failure codes, or user ids.
+
+Apply `supabase/migrations/20260817193000_phase_6d_processing_hardening.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

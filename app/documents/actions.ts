@@ -87,6 +87,7 @@ export async function deleteDocument(
 
   revalidatePath("/documents");
   revalidatePath("/");
+  revalidatePath("/history");
 
   return { success: true };
 }

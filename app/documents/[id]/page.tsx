@@ -20,7 +20,7 @@ import {
   isSupportedAnalysisMimeType,
   isValidUuid,
 } from "@/lib/documents";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, toNonNegativeInt } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -50,7 +50,7 @@ const DOCUMENT_DETAIL_COLUMNS = `
 `;
 
 const JOB_COLUMNS =
-  "id, job_type, status, created_at, started_at, completed_at, error_message";
+  "id, job_type, status, created_at, started_at, completed_at, model_name, input_tokens, output_tokens, total_tokens, processing_duration_ms";
 
 interface DocumentDetailRow {
   id: string;
@@ -75,7 +75,11 @@ interface ProcessingJobRow {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
-  error_message: string | null;
+  model_name: string | null;
+  input_tokens: number | string | null;
+  output_tokens: number | string | null;
+  total_tokens: number | string | null;
+  processing_duration_ms: number | string | null;
 }
 
 function firstResult(
@@ -108,10 +112,11 @@ function toHistoryJobs(rows: ProcessingJobRow[]): ProcessingHistoryJob[] {
     completedAt: job.completed_at,
     attemptNumber: attemptById.get(job.id) ?? 1,
     failed: job.status === "failed",
-    hasSafeFailureMessage:
-      job.status === "failed" &&
-      typeof job.error_message === "string" &&
-      job.error_message.trim().length > 0,
+    modelName: job.model_name?.trim() || null,
+    durationMs: toNonNegativeInt(job.processing_duration_ms),
+    inputTokens: toNonNegativeInt(job.input_tokens),
+    outputTokens: toNonNegativeInt(job.output_tokens),
+    totalTokens: toNonNegativeInt(job.total_tokens),
   }));
 }
 
@@ -178,9 +183,20 @@ function ProcessingState({
           Needs review
         </p>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-          This document is waiting for review. Analysis results are not ready
-          to display yet.
+          This analysis has lower confidence. Review important extracted values
+          against the original document.
         </p>
+        {canAnalyze ? (
+          <div className="mt-5 flex justify-center">
+            <AnalyzeDocumentButton
+              documentId={documentId}
+              fileName={fileName}
+              mimeType={mimeType}
+              status={status}
+              placement="detail"
+            />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -250,7 +266,9 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
   const row = document as DocumentDetailRow;
   const result = firstResult(row.document_results);
   const canAnalyze = isSupportedAnalysisMimeType(row.mime_type);
-  const isProcessed = row.status === "processed";
+  const hasViewableAnalysis =
+    (row.status === "processed" || row.status === "needs_review") && Boolean(result);
+  const needsReview = row.status === "needs_review";
   const detectedType =
     result?.detected_document_type?.trim() ||
     row.document_type?.trim() ||
@@ -334,15 +352,15 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
       </div>
 
       <div className="space-y-6">
-        {isProcessed && result ? (
-          <DocumentAnalysisView result={result} />
-        ) : isProcessed ? (
+        {hasViewableAnalysis && result ? (
+          <DocumentAnalysisView result={result} needsReview={needsReview} />
+        ) : row.status === "processed" || row.status === "needs_review" ? (
           <div className="rounded-xl border border-zinc-200 bg-white px-5 py-12 text-center dark:border-zinc-800 dark:bg-zinc-950">
             <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
               Analysis result unavailable
             </p>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              This document is marked processed, but no analysis result could
+              This document is marked as analyzed, but no analysis result could
               be loaded.
             </p>
           </div>

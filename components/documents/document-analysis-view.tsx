@@ -35,8 +35,10 @@ function DetailMeta({
 
 export function DocumentAnalysisView({
   result,
+  needsReview = false,
 }: {
   result: DocumentAnalysisResultData;
+  needsReview?: boolean;
 }) {
   const processedAt = result.updated_at || result.created_at;
   const summary = result.summary?.trim() || null;
@@ -44,6 +46,23 @@ export function DocumentAnalysisView({
 
   return (
     <div className="space-y-6">
+      {needsReview ? (
+        <div
+          role="status"
+          className="rounded-xl border border-orange-200 bg-orange-50 px-5 py-4 dark:border-orange-500/30 dark:bg-orange-500/10"
+        >
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+            This analysis has lower confidence. Review important extracted
+            values against the original document.
+          </p>
+        </div>
+      ) : null}
+
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        AI-generated analysis may contain errors. Verify important information
+        against the original document.
+      </p>
+
       <section
         aria-labelledby="analysis-summary-heading"
         className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"

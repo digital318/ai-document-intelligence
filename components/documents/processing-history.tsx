@@ -3,7 +3,12 @@ import {
   JOB_STATUS_LABELS,
   type JobStatus,
 } from "@/lib/documents";
-import { formatDateTime, formatJobType } from "@/lib/format";
+import {
+  formatDateTime,
+  formatDurationMs,
+  formatJobType,
+  formatTokenCount,
+} from "@/lib/format";
 
 export interface ProcessingHistoryJob {
   id: string;
@@ -15,8 +20,11 @@ export interface ProcessingHistoryJob {
   attemptNumber: number;
   /** True when the job failed. Raw error text is never included. */
   failed: boolean;
-  /** True when the database has diagnostic text; UI still shows a safe message. */
-  hasSafeFailureMessage: boolean;
+  modelName: string | null;
+  durationMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
 }
 
 const JOB_STATUS_STYLES: Record<JobStatus, string> = {
@@ -44,6 +52,46 @@ function JobStatusBadge({ status }: { status: string }) {
     >
       {label}
     </span>
+  );
+}
+
+function TelemetryRow({
+  modelName,
+  durationMs,
+  inputTokens,
+  outputTokens,
+  totalTokens,
+}: {
+  modelName: string | null;
+  durationMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}) {
+  const hasModel = Boolean(modelName?.trim());
+  const hasDuration = durationMs != null;
+  const hasTokens =
+    inputTokens != null || outputTokens != null || totalTokens != null;
+
+  if (!hasModel && !hasDuration && !hasTokens) return null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+      {hasModel ? <p>Model: {modelName}</p> : null}
+      {hasDuration ? <p>Duration: {formatDurationMs(durationMs)}</p> : null}
+      {hasTokens ? (
+        <p>
+          Tokens:
+          {inputTokens != null ? ` ${formatTokenCount(inputTokens)} in` : ""}
+          {outputTokens != null
+            ? `${inputTokens != null ? " ·" : ""} ${formatTokenCount(outputTokens)} out`
+            : ""}
+          {totalTokens != null
+            ? `${inputTokens != null || outputTokens != null ? " ·" : ""} ${formatTokenCount(totalTokens)} total`
+            : ""}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -134,7 +182,15 @@ export function ProcessingHistory({
                 <TimestampRow label="Completed" value={job.completedAt} />
               </div>
 
-              {job.failed && job.hasSafeFailureMessage ? (
+              <TelemetryRow
+                modelName={job.modelName}
+                durationMs={job.durationMs}
+                inputTokens={job.inputTokens}
+                outputTokens={job.outputTokens}
+                totalTokens={job.totalTokens}
+              />
+
+              {job.failed ? (
                 <p className="mt-2 flex items-start gap-1.5 text-sm text-red-700 dark:text-red-400">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   Analysis attempt failed.

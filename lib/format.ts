@@ -98,6 +98,51 @@ export function formatJobType(jobType: string): string {
   return label.trim().length > 0 ? label : jobType;
 }
 
+/**
+ * Formats a non-negative millisecond duration for operational history.
+ * Examples: 850 → "850 ms", 12400 → "12.4 s", 125000 → "2 min 5 s".
+ */
+export function formatDurationMs(ms: number | null | undefined): string {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "—";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    const rounded =
+      seconds >= 10
+        ? Math.round(seconds).toString()
+        : seconds.toFixed(1).replace(/\.0$/, "");
+    return `${rounded} s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remain = Math.round(seconds % 60);
+  return remain === 0 ? `${minutes} min` : `${minutes} min ${remain} s`;
+}
+
+/** Formats a token count with grouping separators, e.g. 1204 → "1,204". */
+export function formatTokenCount(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "—";
+  }
+  return Math.trunc(value).toLocaleString("en-US");
+}
+
+/**
+ * Coerces a numeric database/API value that may arrive as number or string.
+ * Returns null when the value is missing or not a non-negative finite number.
+ */
+export function toNonNegativeInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) return Math.trunc(parsed);
+  }
+  return null;
+}
+
 /** Readable local date and time, e.g. "Aug 14, 2026, 5:53 PM". */
 export function formatDateTime(isoDate: string): string {
   const date = new Date(isoDate);

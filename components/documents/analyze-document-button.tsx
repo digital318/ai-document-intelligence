@@ -8,8 +8,12 @@ import { isSupportedAnalysisMimeType } from "@/lib/documents";
 
 const SAFE_PROCESS_ERRORS = new Set([
   "Unable to analyze this document. Please try again.",
+  "Unable to complete analysis. Please try again.",
   "This file type is not supported for analysis.",
   "This document is already being analyzed.",
+  "This document is already being processed.",
+  "Analysis is temporarily unavailable. Please try again.",
+  "Analysis service is unavailable.",
   "Document not found",
 ]);
 
@@ -27,8 +31,8 @@ interface AnalyzeDocumentButtonProps {
   /** Used only to hide the control for unsupported file types. */
   mimeType?: string;
   /**
-   * table: processed documents link to the analysis page.
-   * detail: processed documents can be analyzed again.
+   * table: processed and needs_review documents link to the analysis page.
+   * detail: processed and needs_review documents can be analyzed again.
    */
   placement?: "table" | "detail";
 }
@@ -45,11 +49,15 @@ function buttonClasses(placement: "table" | "detail", kind: "primary" | "seconda
   return `${base} cursor-not-allowed border border-zinc-200 text-zinc-400 dark:border-zinc-800 dark:text-zinc-500`;
 }
 
+function hasViewableAnalysis(status: string): boolean {
+  return status === "processed" || status === "needs_review";
+}
+
 function actionLabel(status: string, placement: "table" | "detail"): string | null {
   if (status === "queued" || status === "processing") return null;
   if (status === "failed") return "Retry analysis";
   if (status === "uploaded") return "Analyze";
-  if (status === "processed" && placement === "detail") return "Analyze again";
+  if (hasViewableAnalysis(status) && placement === "detail") return "Analyze again";
   return null;
 }
 
@@ -74,7 +82,7 @@ export function AnalyzeDocumentButton({
   const accessibleName = fileName?.trim() || "document";
   const iconClass = placement === "detail" ? "h-4 w-4" : "h-3.5 w-3.5";
 
-  if (status === "processed" && placement === "table") {
+  if (hasViewableAnalysis(status) && placement === "table") {
     return (
       <Link
         href={`/documents/${documentId}`}
