@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { isValidUuid } from "@/lib/documents";
+import { parseAskRequest } from "@/lib/rag/conversation-history";
 import { answerDocumentQuestion } from "@/lib/rag/answer-document-question";
 
 export const maxDuration = 120;
@@ -9,10 +9,7 @@ const GENERIC_ERROR =
   "Unable to answer this question right now. Please try again.";
 const NOT_FOUND_ERROR = "Document not found";
 const INVALID_QUESTION_ERROR = "Invalid or missing question";
-
-const askRequestSchema = z.object({
-  question: z.string(),
-});
+const INVALID_HISTORY_ERROR = "Invalid conversation history";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -22,8 +19,9 @@ function jsonError(message: string, status: number) {
  * POST /api/documents/[id]/ask
  *
  * Authenticated grounded Q&A for one indexed document. The client sends
- * only `{ question }`. Retrieval, source IDs, model, and thresholds are
- * server-controlled. Questions are not persisted.
+ * `{ question }` and optional `{ history }` (prior question/answer turns).
+ * Retrieval, source IDs, model, and thresholds are server-controlled.
+ * Questions, answers, and history are not persisted.
  */
 export async function POST(
   request: Request,
@@ -42,14 +40,18 @@ export async function POST(
     return jsonError(INVALID_QUESTION_ERROR, 400);
   }
 
-  const parsed = askRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonError(INVALID_QUESTION_ERROR, 400);
+  const parsed = parseAskRequest(body);
+  if (!parsed.ok) {
+    return jsonError(
+      parsed.reason === "history" ? INVALID_HISTORY_ERROR : INVALID_QUESTION_ERROR,
+      400,
+    );
   }
 
   const outcome = await answerDocumentQuestion({
     documentId: id,
-    question: parsed.data.question,
+    question: parsed.question,
+    history: parsed.history,
   });
 
   switch (outcome.status) {

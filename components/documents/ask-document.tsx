@@ -1,19 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Loader2, MessageSquareText } from "lucide-react";
+import { Loader2, MessageSquareText } from "lucide-react";
+import { DocumentAnswerSourceCard } from "./document-answer-source";
 import { IndexDocumentButton } from "./index-document-button";
 import {
   isIndexableDocumentStatus,
   isSupportedAnalysisMimeType,
 } from "@/lib/documents";
 import {
+  MAX_CONVERSATION_HISTORY_TURNS,
+  MAX_HISTORY_ANSWER_LENGTH,
+  MAX_HISTORY_COMBINED_CHARS,
+  MAX_HISTORY_QUESTION_LENGTH,
   MAX_SEARCH_QUERY_LENGTH,
+  MAX_VISIBLE_CONVERSATION_TURNS,
   MIN_SEARCH_QUERY_LENGTH,
 } from "@/lib/rag/config";
 import type { DocumentAnswerSource } from "@/lib/rag/types";
-
-const MAX_HISTORY = 10;
 
 const GENERIC_ASK_ERROR =
   "Unable to answer this question right now. Please try again.";
@@ -23,6 +27,7 @@ const SAFE_ASK_ERRORS = new Set([
   "This document needs to be indexed before Q&A is available.",
   "The document index is out of date. Re-index the document before searching.",
   "Invalid or missing question",
+  "Invalid conversation history",
   "Document not found",
 ]);
 
@@ -42,18 +47,29 @@ interface AskDocumentProps {
   embeddingStatus: string | null | undefined;
 }
 
-function formatSimilarityPercent(similarity: number): string | null {
-  if (!Number.isFinite(similarity)) return null;
-  const percent = Math.round(similarity * 100);
-  if (!Number.isFinite(percent)) return null;
-  const clamped = Math.min(100, Math.max(0, percent));
-  return `${clamped}%`;
-}
+function historyForRequest(
+  turns: AskTurn[],
+): Array<{ question: string; answer: string }> {
+  const selected = turns.slice(-MAX_CONVERSATION_HISTORY_TURNS);
+  const payload: Array<{ question: string; answer: string }> = [];
+  let combined = 0;
 
-function sourceLabel(sourceId: string, index: number): string {
-  const match = /^S(\d+)$/.exec(sourceId.trim());
-  if (match) return `Source ${match[1]}`;
-  return `Source ${index + 1}`;
+  for (let index = selected.length - 1; index >= 0; index -= 1) {
+    const question = selected[index].question
+      .trim()
+      .slice(0, MAX_HISTORY_QUESTION_LENGTH);
+    const answer = selected[index].answer
+      .trim()
+      .slice(0, MAX_HISTORY_ANSWER_LENGTH);
+    if (question.length === 0 || answer.length === 0) continue;
+    if (combined + question.length + answer.length > MAX_HISTORY_COMBINED_CHARS) {
+      break;
+    }
+    payload.unshift({ question, answer });
+    combined += question.length + answer.length;
+  }
+
+  return payload;
 }
 
 function parseSources(value: unknown): DocumentAnswerSource[] {
@@ -96,57 +112,15 @@ function parseSources(value: unknown): DocumentAnswerSource[] {
   return sources;
 }
 
-function SourceCard({
-  source,
-  index,
+function QaTurnCard({
+  turn,
+  documentId,
+  fileName,
 }: {
-  source: DocumentAnswerSource;
-  index: number;
+  turn: AskTurn;
+  documentId: string;
+  fileName: string;
 }) {
-  const similarity = formatSimilarityPercent(source.similarity);
-  const excerpt = source.excerpt.trim();
-
-  return (
-    <li className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-        {sourceLabel(source.sourceId, index)}
-      </p>
-      <dl className="mt-1 space-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-        {source.pageNumber != null ? (
-          <div>
-            <dt className="sr-only">Page</dt>
-            <dd>Page {source.pageNumber}</dd>
-          </div>
-        ) : null}
-        {source.sectionTitle ? (
-          <div>
-            <dt className="sr-only">Section</dt>
-            <dd className="break-words">{source.sectionTitle}</dd>
-          </div>
-        ) : null}
-        {similarity ? (
-          <div>
-            <dt className="sr-only">Similarity</dt>
-            <dd>Similarity: {similarity}</dd>
-          </div>
-        ) : null}
-      </dl>
-      {excerpt ? (
-        <details className="mt-2">
-          <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 [&::-webkit-details-marker]:hidden dark:text-zinc-400 dark:hover:text-zinc-100">
-            <ChevronDown className="h-3.5 w-3.5" />
-            Excerpt
-          </summary>
-          <p className="mt-2 text-xs leading-relaxed break-words text-zinc-600 dark:text-zinc-400">
-            {excerpt}
-          </p>
-        </details>
-      ) : null}
-    </li>
-  );
-}
-
-function QaTurnCard({ turn }: { turn: AskTurn }) {
   return (
     <article className="space-y-4 border-t border-zinc-200 px-5 py-5 first:border-t-0 dark:border-zinc-800">
       <div>
@@ -172,10 +146,12 @@ function QaTurnCard({ turn }: { turn: AskTurn }) {
           </h4>
           <ul className="mt-2 grid gap-2 sm:grid-cols-2">
             {turn.sources.map((source, index) => (
-              <SourceCard
+              <DocumentAnswerSourceCard
                 key={`${turn.id}-${source.sourceId}`}
                 source={source}
                 index={index}
+                documentId={documentId}
+                fileName={fileName}
               />
             ))}
           </ul>
@@ -186,8 +162,8 @@ function QaTurnCard({ turn }: { turn: AskTurn }) {
 }
 
 /**
- * Grounded Ask This Document. Browser sends only `{ question }`.
- * Session history is in-memory and is not persisted.
+ * Grounded Ask This Document. Browser sends `{ question }` and optional
+ * recent `{ history }`. Session history is in-memory and is not persisted.
  */
 export function AskDocument({
   documentId,
@@ -219,11 +195,16 @@ export function AskDocument({
     setIsAsking(true);
     setErrorMessage(null);
 
+    const priorHistory = historyForRequest(history);
+
     try {
       const response = await fetch(`/api/documents/${documentId}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: nextQuestion }),
+        body: JSON.stringify({
+          question: nextQuestion,
+          ...(priorHistory.length > 0 ? { history: priorHistory } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -269,7 +250,9 @@ export function AskDocument({
         sources: body.supported ? parseSources(body.sources) : [],
       };
 
-      setHistory((previous) => [turn, ...previous].slice(0, MAX_HISTORY));
+      setHistory((previous) =>
+        [...previous, turn].slice(-MAX_VISIBLE_CONVERSATION_TURNS),
+      );
       setQuestion("");
     } catch {
       setErrorMessage(GENERIC_ASK_ERROR);
@@ -278,21 +261,45 @@ export function AskDocument({
     }
   };
 
+  const handleClearConversation = () => {
+    if (isAsking) return;
+    setHistory([]);
+    setErrorMessage(null);
+  };
+
   return (
     <section
       aria-labelledby="ask-document-heading"
       className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
     >
       <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-        <h3
-          id="ask-document-heading"
-          className="text-sm font-semibold text-zinc-900 dark:text-zinc-50"
-        >
-          Ask This Document
-        </h3>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Answers use only retrieved passages from this document. Questions are
-          not saved.
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3
+              id="ask-document-heading"
+              className="text-sm font-semibold text-zinc-900 dark:text-zinc-50"
+            >
+              Ask This Document
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Answers are based only on this document. Follow-up questions use
+              recent conversation on this page. Questions are not saved.
+            </p>
+          </div>
+          {canAsk && history.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleClearConversation}
+              disabled={isAsking}
+              className="shrink-0 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Clear conversation
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+          Answers are generated from this document and may contain errors. Verify
+          important information against the original.
         </p>
       </div>
 
@@ -330,7 +337,11 @@ export function AskDocument({
               maxLength={MAX_SEARCH_QUERY_LENGTH}
               rows={3}
               disabled={isAsking}
-              placeholder="Ask a question about this document..."
+              placeholder={
+                history.length > 0
+                  ? "Ask a follow-up about this document..."
+                  : "Ask a question about this document..."
+              }
               className="w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500"
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -367,7 +378,12 @@ export function AskDocument({
           {history.length > 0 ? (
             <div aria-live="polite">
               {history.map((turn) => (
-                <QaTurnCard key={turn.id} turn={turn} />
+                <QaTurnCard
+                  key={turn.id}
+                  turn={turn}
+                  documentId={documentId}
+                  fileName={fileName}
+                />
               ))}
             </div>
           ) : null}

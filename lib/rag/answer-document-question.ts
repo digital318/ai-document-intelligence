@@ -14,12 +14,15 @@ import {
   MIN_SEARCH_QUERY_LENGTH,
   RAG_MATCH_COUNT,
 } from "@/lib/rag/config";
+import { contextualizeQuestion } from "@/lib/rag/contextualize-question";
 import { searchDocument } from "@/lib/rag/search-document";
 import type {
+  ConversationTurn,
   DocumentAnswerResult,
   DocumentAnswerSource,
   DocumentSearchMatch,
 } from "@/lib/rag/types";
+import { validateModelCitations } from "@/lib/rag/validate-citations";
 
 export { DOCUMENT_QA_PROMPT_VERSION };
 export type { DocumentAnswerResult, DocumentAnswerSource };
@@ -109,14 +112,20 @@ function assignSources(matches: DocumentSearchMatch[]): AssignedSource[] {
   }));
 }
 
-function toPublicSource(source: AssignedSource): DocumentAnswerSource {
+function toPublicSource(
+  source: AssignedSource,
+  evidenceExcerpt?: string,
+): DocumentAnswerSource {
+  const excerpt = evidenceExcerpt?.trim()
+    ? evidenceExcerpt.trim()
+    : excerptFromChunk(source.match.content);
   return {
     sourceId: source.sourceId,
     chunkIndex: source.match.chunkIndex,
     pageNumber: source.match.pageNumber,
     sectionTitle: source.match.sectionTitle,
     similarity: source.match.similarity,
-    excerpt: excerptFromChunk(source.match.content),
+    excerpt,
   };
 }
 
@@ -129,32 +138,20 @@ function unsupportedResult(question: string): DocumentAnswerResult {
   };
 }
 
-function validCitationIds(
-  citations: { source_id: string }[],
-  assignedIds: Set<string>,
-): string[] {
-  const seen = new Set<string>();
-  const valid: string[] = [];
-  for (const citation of citations) {
-    const sourceId = citation.source_id.trim();
-    if (!assignedIds.has(sourceId) || seen.has(sourceId)) continue;
-    seen.add(sourceId);
-    valid.push(sourceId);
-  }
-  return valid;
-}
-
 /**
  * Grounded Q&A for one authenticated, indexed document.
  *
- * Reuses Phase 7B searchDocument() for retrieval. Does not persist the
- * question, write processing jobs, or send the original file to the model.
+ * Optional conversation history is untrusted context used only to interpret
+ * follow-ups. Retrieval still runs on every turn via Phase 7B searchDocument().
+ * Questions, answers, history, and standalone retrieval queries are not persisted.
  */
 export async function answerDocumentQuestion(params: {
   documentId: string;
   question: string;
+  history?: ConversationTurn[];
 }): Promise<AnswerDocumentQuestionOutcome> {
   const question = params.question.trim();
+  const history = params.history ?? [];
   if (
     question.length < MIN_SEARCH_QUERY_LENGTH ||
     question.length > MAX_SEARCH_QUERY_LENGTH
@@ -162,9 +159,14 @@ export async function answerDocumentQuestion(params: {
     return { status: "invalid_query" };
   }
 
+  const retrievalQuery = await contextualizeQuestion({
+    question,
+    history,
+  });
+
   const retrieval = await searchDocument({
     documentId: params.documentId,
-    query: question,
+    query: retrievalQuery,
   });
 
   switch (retrieval.status) {
@@ -199,10 +201,13 @@ export async function answerDocumentQuestion(params: {
   }
 
   const assigned = assignSources(matches);
-  const assignedIds = new Set(assigned.map((source) => source.sourceId));
+  const sourceContentById = new Map(
+    assigned.map((source) => [source.sourceId, source.match.content]),
+  );
   const sourceBlocks = assigned.map(formatSourceBlock).join("\n\n");
   const userMessage = buildDocumentQaUserMessage({
     question,
+    history,
     sourceBlocks,
   });
 
@@ -258,8 +263,11 @@ export async function answerDocumentQuestion(params: {
       };
     }
 
-    const citedIds = validCitationIds(parsed.citations, assignedIds);
-    if (citedIds.length === 0 || answer.length === 0) {
+    const validated = validateModelCitations(
+      parsed.citations,
+      sourceContentById,
+    );
+    if (validated.length === 0 || answer.length === 0) {
       logAsk("info", "Supported claim rejected", {
         documentId: params.documentId,
         matchCount: assigned.length,
@@ -272,10 +280,14 @@ export async function answerDocumentQuestion(params: {
       };
     }
 
-    const citedIdSet = new Set(citedIds);
+    const excerptBySourceId = new Map(
+      validated.map((citation) => [citation.sourceId, citation.evidenceExcerpt]),
+    );
     const sources = assigned
-      .filter((source) => citedIdSet.has(source.sourceId))
-      .map(toPublicSource);
+      .filter((source) => excerptBySourceId.has(source.sourceId))
+      .map((source) =>
+        toPublicSource(source, excerptBySourceId.get(source.sourceId)),
+      );
 
     logAsk("info", "Answer generated", {
       documentId: params.documentId,

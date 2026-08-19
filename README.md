@@ -63,7 +63,7 @@ Authenticated users can analyze uploaded documents from the library or the analy
 
 Every attempt writes `public.document_processing_jobs`. The latest structured result is upserted into `public.document_results`. Temporary OpenAI file IDs are deleted after success or failure and are never stored in the database or sent to the browser.
 
-The dashboard Processed, AI Requests, Recent Activity, and Storage Used metrics include every supported format. OCR libraries, embeddings, vector search, and document chat are still out of scope.
+The dashboard Processed, AI Requests, Recent Activity, and Storage Used metrics include every supported format. OCR libraries are still out of scope for analysis. Document indexing, retrieval, and grounded Q&A are Phase 7.
 
 ## Phase 6D — Processing Hardening, Quality Controls, and Observability
 
@@ -217,7 +217,9 @@ question
 → supporting sources
 ```
 
-The browser POSTs only `{ "question": "..." }` to `/api/documents/<id>/ask`. Match count, similarity threshold, embedding model, source IDs, and retrieved chunks are server-controlled.
+Phase 7C is single-turn grounded Q&A. Conversational follow-ups, retrieval-query rewriting, and citation excerpt validation are Phase 7D.
+
+The browser POSTs `{ "question": "..." }` to `/api/documents/<id>/ask`. Match count, similarity threshold, embedding model, source IDs, and retrieved chunks are server-controlled.
 
 **Grounding**
 
@@ -232,13 +234,82 @@ The browser POSTs only `{ "question": "..." }` to `/api/documents/<id>/ask`. Mat
 - Answer-generation Responses use `store: false`. OpenAI Response objects are not persisted.
 - Questions and answers are not written to the database. They do not create `document_processing_jobs` rows and do not change dashboard Processed or document status.
 - Server logs may include document id, match count, supported/unsupported, and a high-level failure category. They do not include questions, retrieved text, embeddings, API keys, or tokens.
-- The analysis page keeps at most about 10 recent Q&A pairs in React state for the current visit. Reloading the page clears them. Prior turns are not sent into retrieval or answer generation.
+- The analysis page keeps recent Q&A pairs in React state for the current visit. Reloading the page clears them.
 
 **Ask This Document UI**
 
 The experience appears on the analysis page for `processed` and `needs_review` documents. When `embedding_status = indexed`, the user can ask a question. When the document is not indexed, the page shows: `Index this document for Q&A to ask questions about its contents.` and reuses the existing indexing control. Unsupported questions are a valid retrieval result, not a system error.
 
-Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v1`. The configured document model (`OPENAI_DOCUMENT_MODEL` / GPT-5.6 Terra) is unchanged.
+Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v2`. The configured document model (`OPENAI_DOCUMENT_MODEL` / GPT-5.6 Terra) is unchanged.
+
+## Phase 7D — Conversational RAG, Citation Polish, and Security Hardening
+
+Phase 7 layers, in order:
+
+- **Phase 7A** — vector indexing
+- **Phase 7B** — semantic retrieval
+- **Phase 7C** — grounded single-turn Q&A
+- **Phase 7D** — conversational and hardened RAG UX
+
+Phase 7D completes the **single-document RAG experience**. It does not add cross-document Q&A, workspace-wide search, permanent chat-history tables, web search, external tools, streaming, or public Storage.
+
+```
+current user question
+→ recent session conversation (browser-only)
+→ standalone retrieval query (contextualization)
+→ existing Phase 7B searchDocument()
+→ retrieved chunks
+→ grounded answer to the original question
+→ validated sources and evidence excerpts
+```
+
+**Conversational follow-up Q&A**
+
+Ask This Document keeps approximately the last 6–10 turns in React state for the current document page session. Refresh or navigation may clear them. **Clear conversation** removes the in-memory thread. History is not written to the database and does not create `document_processing_jobs` rows.
+
+Each turn runs semantic retrieval again. Previous chunks are not reused without a new search.
+
+The browser may POST optional untrusted history with the current question:
+
+```json
+{
+  "question": "When does it expire?",
+  "history": [
+    {
+      "question": "What is the policy number?",
+      "answer": "The policy number is ..."
+    }
+  ]
+}
+```
+
+Server-side limits: at most 6 prior turns, questions ≤ 1000 characters, answers ≤ 2000 characters, combined history ≈ 8000 characters. Extra keys (document ids, source ids, embeddings, storage paths, model names, retrieval chunks) are rejected. Malformed history returns HTTP 400 (`Invalid conversation history`).
+
+**Standalone retrieval-query contextualization**
+
+When history is present, a dedicated Responses call (`RETRIEVAL_QUERY_PROMPT_VERSION = v1`, `store: false`, no tools) rewrites the follow-up into a standalone semantic-search query, for example `When does the insurance policy expire?`. Document content is not retrieved during this step. Conversation text is untrusted context, never instructions.
+
+The rewritten query is used only for retrieval. The answer model still answers the **original** user question. The standalone query is not displayed, not persisted, and not logged by default. If history is empty, contextualization is skipped. If rewriting fails, the original question is used.
+
+**Question-aware validated excerpts**
+
+Each model citation includes `source_id` and a short `evidence_excerpt` (about ≤ 300 characters) copied from that source. The server:
+
+1. Drops citations whose `source_id` was not assigned for this retrieval.
+2. Drops excerpts that are not actually contained in the associated source text (harmless whitespace is normalized).
+3. Treats a `supported = true` answer with no remaining valid citations as unsupported.
+
+The source UI prefers the validated excerpt for the current question. If a verified excerpt is unavailable, it falls back to a safe chunk excerpt. Sources show Source N, section title and page when present, similarity percentage, the evidence excerpt, and **View Original** via the existing authenticated view route. Storage paths, embeddings, user ids, and OpenAI request ids are not exposed.
+
+**Prompt-injection defenses**
+
+Developer instructions, the user question, conversation context, and document sources are kept in separate payload regions. Source content and conversation history are untrusted. Instructions inside either must not override grounding rules, reveal hidden prompts, or trigger tool use. Previous assistant answers are not evidence; retrieved document sources win when they conflict. Conversation context must not make an unsupported question appear supported.
+
+**Privacy**
+
+Contextualization and answer generation both set `store: false`. Questions, answers, conversation history, and standalone retrieval queries are not persisted. Normal document questions do not inflate dashboard AI-processing metrics.
+
+Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v2`. The configured document model is unchanged.
 
 ## Learn More
 

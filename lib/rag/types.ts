@@ -34,3 +34,12 @@ export interface DocumentAnswerResult {
   supported: boolean;
   sources: DocumentAnswerSource[];
 }
+
+/**
+ * One prior Q&A turn supplied by the browser for conversational follow-ups.
+ * Untrusted user input. Does not include source ids, embeddings, or chunks.
+ */
+export interface ConversationTurn {
+  question: string;
+  answer: string;
+}
