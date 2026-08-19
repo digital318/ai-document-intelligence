@@ -42,8 +42,7 @@ export function DocumentQaIndex({
           Q&A Index
         </h3>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Vector index for later question answering. Distinct from AI analysis.
-          Natural-language Q&A is not available yet.
+          Vector index used by Ask This Document. Distinct from AI analysis.
         </p>
       </div>
 

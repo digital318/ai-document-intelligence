@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertCircle, ArrowLeft, FileText, Loader2 } from "lucide-react";
 import { AnalyzeDocumentButton } from "@/components/documents/analyze-document-button";
+import { AskDocument } from "@/components/documents/ask-document";
 import { DocumentActions } from "@/components/documents/document-actions";
 import {
   DocumentAnalysisView,
@@ -383,15 +384,24 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
         )}
 
         {isIndexableDocumentStatus(row.status) ? (
-          <DocumentQaIndex
-            documentId={row.id}
-            fileName={row.file_name}
-            mimeType={row.mime_type}
-            status={row.status}
-            embeddingStatus={row.embedding_status}
-            embeddingModel={row.embedding_model}
-            indexedAt={row.indexed_at}
-          />
+          <>
+            <DocumentQaIndex
+              documentId={row.id}
+              fileName={row.file_name}
+              mimeType={row.mime_type}
+              status={row.status}
+              embeddingStatus={row.embedding_status}
+              embeddingModel={row.embedding_model}
+              indexedAt={row.indexed_at}
+            />
+            <AskDocument
+              documentId={row.id}
+              fileName={row.file_name}
+              mimeType={row.mime_type}
+              status={row.status}
+              embeddingStatus={row.embedding_status}
+            />
+          </>
         ) : null}
 
         <DocumentDetails

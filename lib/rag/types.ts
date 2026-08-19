@@ -17,3 +17,20 @@ export interface DocumentSearchResult {
   query: string;
   matches: DocumentSearchMatch[];
 }
+
+/** Supporting evidence returned with a grounded document answer. */
+export interface DocumentAnswerSource {
+  sourceId: string;
+  chunkIndex: number;
+  pageNumber: number | null;
+  sectionTitle: string | null;
+  similarity: number;
+  excerpt: string;
+}
+
+export interface DocumentAnswerResult {
+  question: string;
+  answer: string;
+  supported: boolean;
+  sources: DocumentAnswerSource[];
+}

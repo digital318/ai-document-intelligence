@@ -161,7 +161,7 @@ Configure `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` in `.env.local` if you
 
 ## Phase 7B — Secure Semantic Document Retrieval
 
-Phase 7A built the **index**. Phase 7B adds **semantic retrieval** for one indexed document. Phase 7C will add grounded question answering. This phase does **not** generate a natural-language answer, Ask AI UI, chat history, citations UI, library-wide search, hybrid keyword search, or reranking.
+Phase 7A built the **index**. Phase 7B adds **semantic retrieval** for one indexed document. Phase 7C adds grounded question answering on top of this retrieval. This phase does **not** generate a natural-language answer, Ask AI UI, chat history, citations UI, library-wide search, hybrid keyword search, or reranking.
 
 Apply `supabase/migrations/20260818193000_phase_7b_semantic_retrieval.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
 
@@ -201,6 +201,44 @@ If `documents.embedding_model` does not match the configured query model, or `em
 **Response**
 
 HTTP 200 returns the trimmed query and up to five matches (`chunkId`, `chunkIndex`, `content`, `pageNumber`, `sectionTitle`, `similarity`), highest similarity first. `pageNumber` / `sectionTitle` are preserved from Phase 7A when present; they are `null` when unknown. Zero matches is a successful empty list, not an error.
+
+## Phase 7C — Grounded Ask This Document
+
+Phase 7C adds **grounded natural-language Q&A for one indexed document**. It does not add cross-document Q&A, workspace-wide search, persistent chat tables, conversation memory, streaming, web search, hybrid search, reranking, or public sharing.
+
+**Architecture**
+
+```
+question
+→ query embedding
+→ semantic retrieval (Phase 7B searchDocument)
+→ top document chunks
+→ GPT answer from retrieved evidence only
+→ supporting sources
+```
+
+The browser POSTs only `{ "question": "..." }` to `/api/documents/<id>/ask`. Match count, similarity threshold, embedding model, source IDs, and retrieved chunks are server-controlled.
+
+**Grounding**
+
+- Answers use retrieved evidence only. The original file is not re-sent, and the full `document_chunks` table is not sent to GPT.
+- Zero retrieval matches return an unsupported answer immediately and **do not** call the document answer model. This limits both hallucination and cost.
+- `supported` is true only when the supplied chunks support the answer and at least one application-assigned source ID (`S1`–`S5`) is valid. Invented citation IDs are discarded. A supported claim with zero valid citations is treated as unsupported.
+- Retrieved document text is untrusted data. It is sent in the user/context payload, not concatenated into developer instructions. Instructions inside chunks are ignored.
+- If supplied sources conflict, the model must not silently pick one.
+
+**Privacy and cost**
+
+- Answer-generation Responses use `store: false`. OpenAI Response objects are not persisted.
+- Questions and answers are not written to the database. They do not create `document_processing_jobs` rows and do not change dashboard Processed or document status.
+- Server logs may include document id, match count, supported/unsupported, and a high-level failure category. They do not include questions, retrieved text, embeddings, API keys, or tokens.
+- The analysis page keeps at most about 10 recent Q&A pairs in React state for the current visit. Reloading the page clears them. Prior turns are not sent into retrieval or answer generation.
+
+**Ask This Document UI**
+
+The experience appears on the analysis page for `processed` and `needs_review` documents. When `embedding_status = indexed`, the user can ask a question. When the document is not indexed, the page shows: `Index this document for Q&A to ask questions about its contents.` and reuses the existing indexing control. Unsupported questions are a valid retrieval result, not a system error.
+
+Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v1`. The configured document model (`OPENAI_DOCUMENT_MODEL` / GPT-5.6 Terra) is unchanged.
 
 ## Learn More
 
