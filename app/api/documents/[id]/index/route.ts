@@ -27,6 +27,11 @@ import {
 } from "@/lib/openai/errors";
 import { extractRetrievalText } from "@/lib/openai/retrieval-text";
 import { chunkDocument } from "@/lib/rag/chunk-document";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
+import {
+  consumeAiRateLimit,
+  rateLimitedResponse,
+} from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 300;
@@ -48,38 +53,40 @@ function jsonError(message: string, status: number) {
 function logIndexEvent(
   stage: string,
   details: {
+    documentId?: string;
     jobId?: string;
     openaiRequestId?: string | null;
     failureCode?: FailureCode | string;
     chunkCount?: number;
+    durationMs?: number;
+    statusCode?: number;
   } = {},
 ) {
-  const parts = [stage];
-  if (details.jobId) parts.push(`job=${details.jobId}`);
-  if (details.openaiRequestId) {
-    parts.push(`openai_request_id=${details.openaiRequestId}`);
-  }
-  if (details.failureCode) parts.push(`failure_code=${details.failureCode}`);
-  if (details.chunkCount != null) parts.push(`chunks=${details.chunkCount}`);
-  console.error("[documents/index]", ...parts);
+  logServerEvent("documents/index", "error", stage, {
+    document: details.documentId,
+    job: details.jobId,
+    openai_request_id: details.openaiRequestId,
+    failure_code: details.failureCode,
+    chunks: details.chunkCount,
+    duration_ms: details.durationMs,
+    status: details.statusCode,
+  });
 }
 
 function logIndexError(
   stage: string,
   error: unknown,
   details: {
+    documentId?: string;
     jobId?: string;
     openaiRequestId?: string | null;
     failureCode?: FailureCode | string;
   } = {},
 ) {
   logIndexEvent(stage, details);
-  if (error && typeof error === "object") {
-    const record = error as { code?: unknown; status?: unknown };
-    const code = record.code ?? record.status;
-    if (code != null) {
-      console.error("[documents/index]", stage, "code", code);
-    }
+  const code = readErrorCode(error);
+  if (code != null) {
+    logServerEvent("documents/index", "error", stage, { code });
   }
 }
 
@@ -221,7 +228,7 @@ export async function POST(
     .maybeSingle();
 
   if (lookupError) {
-    logIndexError("Document lookup failed", lookupError);
+    logIndexError("Document lookup failed", lookupError, { documentId: id });
     return jsonError(NOT_FOUND_ERROR, 404);
   }
 
@@ -239,6 +246,22 @@ export async function POST(
 
   const hadValidPreviousIndex =
     document.embedding_status === "indexed" || Boolean(document.indexed_at);
+
+  const rateLimit = await consumeAiRateLimit(supabase, "document_index");
+  if (!rateLimit.ok) {
+    logServerEvent("documents/index", "error", "Rate limit check failed", {
+      document: document.id,
+      status: 500,
+    });
+    return jsonError(GENERIC_ERROR, 500);
+  }
+  if (!rateLimit.allowed) {
+    logServerEvent("documents/index", "info", "Rate limited", {
+      document: document.id,
+      status: 429,
+    });
+    return rateLimitedResponse(rateLimit.resetAt);
+  }
 
   const { data: claimedJobId, error: claimError } = await supabase.rpc(
     "claim_document_embedding_index",
@@ -475,13 +498,14 @@ export async function POST(
       );
     }
 
-    console.info(
-      "[documents/index]",
-      "Indexing completed",
-      `job=${jobId}`,
-      `chunks=${rows.length}`,
-      openaiRequestId ? `openai_request_id=${openaiRequestId}` : "",
-    );
+    logServerEvent("documents/index", "info", "Indexing completed", {
+      document: document.id,
+      job: jobId,
+      chunks: rows.length,
+      openai_request_id: openaiRequestId,
+      duration_ms: elapsedMs(indexingStartedAt),
+      status: 200,
+    });
 
     revalidateDocumentPaths(document.id);
 

@@ -1,4 +1,5 @@
 import { EMBEDDING_INDEX_JOB_TYPE } from "@/lib/documents";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 import { createClient } from "@/lib/supabase/server";
 
 const RECENT_LIMIT = 5;
@@ -102,11 +103,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   let metricsError = false;
 
   if (metricsResult.error) {
-    console.error(
-      "[dashboard] Failed to load metrics:",
-      metricsResult.error.code,
-      metricsResult.error.message,
-    );
+    logServerEvent("dashboard", "error", "Failed to load metrics", {
+      code: readErrorCode(metricsResult.error),
+      category: "metrics",
+    });
     metricsError = true;
   } else {
     metrics = parseMetrics(metricsResult.data);
@@ -116,11 +116,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   let documentsError = false;
 
   if (documentsResult.error) {
-    console.error(
-      "[dashboard] Failed to load recent documents:",
-      documentsResult.error.code,
-      documentsResult.error.message,
-    );
+    logServerEvent("dashboard", "error", "Failed to load recent documents", {
+      code: readErrorCode(documentsResult.error),
+      category: "documents",
+    });
     documentsError = true;
   } else {
     recentDocuments = documentsResult.data ?? [];
@@ -130,11 +129,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   let jobsError = false;
 
   if (jobsResult.error) {
-    console.error(
-      "[dashboard] Failed to load recent processing jobs:",
-      jobsResult.error.code,
-      jobsResult.error.message,
-    );
+    logServerEvent("dashboard", "error", "Failed to load recent processing jobs", {
+      code: readErrorCode(jobsResult.error),
+      category: "jobs",
+    });
     jobsError = true;
   } else {
     jobs = jobsResult.data ?? [];

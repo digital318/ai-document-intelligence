@@ -2,6 +2,7 @@ import "server-only";
 
 import { zodTextFormat } from "openai/helpers/zod";
 import { getDocumentModel, getOpenAIClient } from "@/lib/openai/client";
+import { logServerEvent } from "@/lib/observability/log";
 import {
   RETRIEVAL_QUERY_INSTRUCTIONS,
   RETRIEVAL_QUERY_PROMPT_VERSION,
@@ -78,13 +79,17 @@ export async function contextualizeQuestion(params: {
 
     const parsed = response.output_parsed;
     if (!parsed) {
-      console.error("[documents/ask]", "Contextualization missing output");
+      logServerEvent("documents/ask", "error", "Contextualization missing output", {
+        category: "contextualize",
+      });
       return question;
     }
 
     return clampStandaloneQuery(parsed.standalone_query, question);
   } catch {
-    console.error("[documents/ask]", "Contextualization failed");
+    logServerEvent("documents/ask", "error", "Contextualization failed", {
+      category: "contextualize",
+    });
     return question;
   }
 }

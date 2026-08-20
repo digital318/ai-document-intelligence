@@ -9,6 +9,7 @@ import {
   isSupportedAnalysisMimeType,
   type EmbeddingStatus,
 } from "@/lib/documents";
+import { RATE_LIMIT_USER_MESSAGE } from "@/lib/security/rate-limit-messages";
 
 const SAFE_INDEX_ERRORS = new Set([
   "Unable to complete indexing. Please try again.",
@@ -95,6 +96,11 @@ export function IndexDocumentButton({
       if (response.ok) {
         succeeded = true;
         router.refresh();
+        return;
+      }
+
+      if (response.status === 429) {
+        setErrorMessage(RATE_LIMIT_USER_MESSAGE);
         return;
       }
 

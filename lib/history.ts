@@ -1,4 +1,5 @@
 import { toNonNegativeInt } from "@/lib/format";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 import { createClient } from "@/lib/supabase/server";
 
 export const HISTORY_PAGE_SIZE = 25;
@@ -71,11 +72,10 @@ export async function getHistoryPageData(): Promise<HistoryPageData> {
     .returns<HistoryJobRow[]>();
 
   if (error) {
-    console.error(
-      "[history] Failed to load processing jobs:",
-      error.code,
-      error.message,
-    );
+    logServerEvent("history", "error", "Failed to load processing jobs", {
+      code: readErrorCode(error),
+      category: "jobs",
+    });
     return { jobs: [], loadError: true };
   }
 

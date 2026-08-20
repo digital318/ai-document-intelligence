@@ -1,11 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { readPublicSupabaseConfig } from "@/lib/env/public";
 
 const PUBLIC_ROUTES = [
   "/login",
   "/signup",
   "/auth/callback",
-  "/api/health/supabase",
+  "/api/health",
 ] as const;
 
 function isPublicRoute(pathname: string): boolean {
@@ -45,12 +46,11 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publishableKey) {
+  const config = readPublicSupabaseConfig();
+  if (!config) {
     return supabaseResponse;
   }
+  const { url, publishableKey } = config;
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {

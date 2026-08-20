@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 import { isSupportedAnalysisMimeType } from "@/lib/documents";
+import { RATE_LIMIT_USER_MESSAGE } from "@/lib/security/rate-limit-messages";
 
 const SAFE_PROCESS_ERRORS = new Set([
   "Unable to analyze this document. Please try again.",
@@ -124,6 +125,11 @@ export function AnalyzeDocumentButton({
       if (response.ok) {
         succeeded = true;
         router.refresh();
+        return;
+      }
+
+      if (response.status === 429) {
+        setErrorMessage(RATE_LIMIT_USER_MESSAGE);
         return;
       }
 

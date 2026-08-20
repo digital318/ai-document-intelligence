@@ -3,6 +3,7 @@ import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getDocumentModel, getOpenAIClient } from "@/lib/openai/client";
 import { classifyProcessingError } from "@/lib/openai/errors";
+import { logServerEvent } from "@/lib/observability/log";
 import {
   DOCUMENT_QA_INSTRUCTIONS,
   DOCUMENT_QA_PROMPT_VERSION,
@@ -58,20 +59,21 @@ function logAsk(
     matchCount?: number;
     supported?: boolean;
     category?: string;
+    durationMs?: number;
   } = {},
 ) {
-  const parts = [event];
-  if (details.documentId) parts.push(`document=${details.documentId}`);
-  if (details.matchCount != null) parts.push(`matches=${details.matchCount}`);
-  if (details.supported != null) {
-    parts.push(details.supported ? "supported" : "unsupported");
-  }
-  if (details.category) parts.push(`category=${details.category}`);
-  if (level === "error") {
-    console.error("[documents/ask]", ...parts);
-  } else {
-    console.info("[documents/ask]", ...parts);
-  }
+  logServerEvent("documents/ask", level, event, {
+    document: details.documentId,
+    matches: details.matchCount,
+    supported:
+      details.supported == null
+        ? undefined
+        : details.supported
+          ? "supported"
+          : "unsupported",
+    category: details.category,
+    duration_ms: details.durationMs,
+  });
 }
 
 function sourceIdForIndex(index: number): string {
@@ -152,6 +154,7 @@ export async function answerDocumentQuestion(params: {
 }): Promise<AnswerDocumentQuestionOutcome> {
   const question = params.question.trim();
   const history = params.history ?? [];
+  const startedAt = Date.now();
   if (
     question.length < MIN_SEARCH_QUERY_LENGTH ||
     question.length > MAX_SEARCH_QUERY_LENGTH
@@ -193,6 +196,7 @@ export async function answerDocumentQuestion(params: {
       documentId: params.documentId,
       matchCount: 0,
       supported: false,
+      durationMs: Date.now() - startedAt,
     });
     return {
       status: "ok",
@@ -251,6 +255,7 @@ export async function answerDocumentQuestion(params: {
         documentId: params.documentId,
         matchCount: assigned.length,
         supported: false,
+        durationMs: Date.now() - startedAt,
       });
       return {
         status: "ok",
@@ -273,6 +278,7 @@ export async function answerDocumentQuestion(params: {
         matchCount: assigned.length,
         supported: false,
         category: "citations",
+        durationMs: Date.now() - startedAt,
       });
       return {
         status: "ok",
@@ -293,6 +299,7 @@ export async function answerDocumentQuestion(params: {
       documentId: params.documentId,
       matchCount: assigned.length,
       supported: true,
+      durationMs: Date.now() - startedAt,
     });
 
     return {

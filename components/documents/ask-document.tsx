@@ -18,6 +18,7 @@ import {
   MIN_SEARCH_QUERY_LENGTH,
 } from "@/lib/rag/config";
 import type { DocumentAnswerSource } from "@/lib/rag/types";
+import { RATE_LIMIT_USER_MESSAGE } from "@/lib/security/rate-limit-messages";
 
 const GENERIC_ASK_ERROR =
   "Unable to answer this question right now. Please try again.";
@@ -206,6 +207,11 @@ export function AskDocument({
           ...(priorHistory.length > 0 ? { history: priorHistory } : {}),
         }),
       });
+
+      if (response.status === 429) {
+        setErrorMessage(RATE_LIMIT_USER_MESSAGE);
+        return;
+      }
 
       if (!response.ok) {
         let message = GENERIC_ASK_ERROR;

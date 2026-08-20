@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getPublicSupabaseConfig } from "@/lib/env/public";
 
 /**
  * Creates a server Supabase client for Server Components, Server Actions,
@@ -8,23 +9,7 @@ import { cookies } from "next/headers";
  */
 export async function createClient() {
   const cookieStore = await cookies();
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url) {
-    throw new Error(
-      "Missing environment variable: NEXT_PUBLIC_SUPABASE_URL. " +
-        "Add it to your .env.local file (see .env.example).",
-    );
-  }
-
-  if (!publishableKey) {
-    throw new Error(
-      "Missing environment variable: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. " +
-        "Add it to your .env.local file (see .env.example).",
-    );
-  }
+  const { url, publishableKey } = getPublicSupabaseConfig();
 
   return createServerClient(url, publishableKey, {
     cookies: {

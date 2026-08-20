@@ -1,38 +1,18 @@
 import "server-only";
 
 import OpenAI from "openai";
+import {
+  getOpenAIApiKey,
+  getOpenAIDocumentModel,
+  getOpenAIEmbeddingModel,
+  getOpenAIRequestTimeoutMs,
+} from "@/lib/env/server";
 
-const DEFAULT_DOCUMENT_MODEL = "gpt-5.6-terra";
-const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 const OPENAI_MAX_RETRIES = 2;
 
 let client: OpenAI | null = null;
 
-/**
- * Reads OPENAI_REQUEST_TIMEOUT_MS when it is a positive integer.
- * Invalid or missing values fall back to 120000 milliseconds.
- */
-export function getOpenAIRequestTimeoutMs(): number {
-  const raw = process.env.OPENAI_REQUEST_TIMEOUT_MS?.trim();
-  if (!raw) return DEFAULT_REQUEST_TIMEOUT_MS;
-
-  if (!/^\d+$/.test(raw)) {
-    console.error(
-      "[openai] Invalid OPENAI_REQUEST_TIMEOUT_MS; using default timeout",
-    );
-    return DEFAULT_REQUEST_TIMEOUT_MS;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    console.error(
-      "[openai] Invalid OPENAI_REQUEST_TIMEOUT_MS; using default timeout",
-    );
-    return DEFAULT_REQUEST_TIMEOUT_MS;
-  }
-
-  return parsed;
-}
+export { getOpenAIRequestTimeoutMs } from "@/lib/env/server";
 
 /**
  * Returns a reusable server-only OpenAI client.
@@ -46,16 +26,8 @@ export function getOpenAIRequestTimeoutMs(): number {
 export function getOpenAIClient(): OpenAI {
   if (client) return client;
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "Missing environment variable: OPENAI_API_KEY. " +
-        "Add it to your .env.local file (see .env.example).",
-    );
-  }
-
   client = new OpenAI({
-    apiKey,
+    apiKey: getOpenAIApiKey(),
     maxRetries: OPENAI_MAX_RETRIES,
     timeout: getOpenAIRequestTimeoutMs(),
   });
@@ -67,13 +39,8 @@ export function getOpenAIClient(): OpenAI {
  * Override with OPENAI_DOCUMENT_MODEL; otherwise gpt-5.6-terra.
  */
 export function getDocumentModel(): string {
-  const configured = process.env.OPENAI_DOCUMENT_MODEL?.trim();
-  return configured && configured.length > 0
-    ? configured
-    : DEFAULT_DOCUMENT_MODEL;
+  return getOpenAIDocumentModel();
 }
-
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 
 /** Output dimensionality requested from the embeddings API. */
 export const EMBEDDING_DIMENSIONS = 1536;
@@ -86,8 +53,5 @@ export const EMBEDDING_VERSION = "v1";
  * Override with OPENAI_EMBEDDING_MODEL; otherwise text-embedding-3-small.
  */
 export function getEmbeddingModel(): string {
-  const configured = process.env.OPENAI_EMBEDDING_MODEL?.trim();
-  return configured && configured.length > 0
-    ? configured
-    : DEFAULT_EMBEDDING_MODEL;
+  return getOpenAIEmbeddingModel();
 }

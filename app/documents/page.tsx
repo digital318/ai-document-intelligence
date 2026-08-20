@@ -17,6 +17,7 @@ import {
   parseDocumentListParams,
 } from "@/lib/documents";
 import { createClient } from "@/lib/supabase/server";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 
 export const metadata: Metadata = {
   title: "Documents",
@@ -68,12 +69,10 @@ export default async function DocumentsPage({
   const { count, error: countError } = await countQuery;
 
   if (countError) {
-    // Log only Supabase's safe error metadata — never tokens or keys.
-    console.error(
-      "[documents] Failed to count documents:",
-      countError.code,
-      countError.message,
-    );
+    logServerEvent("documents", "error", "Failed to count documents", {
+      code: readErrorCode(countError),
+      category: "count",
+    });
     loadError = true;
   } else {
     totalCount = count ?? 0;
@@ -109,11 +108,10 @@ export default async function DocumentsPage({
       .returns<DocumentListItem[]>();
 
     if (error) {
-      console.error(
-        "[documents] Failed to load documents:",
-        error.code,
-        error.message,
-      );
+      logServerEvent("documents", "error", "Failed to load documents", {
+        code: readErrorCode(error),
+        category: "list",
+      });
       loadError = true;
     } else {
       documents = data ?? [];

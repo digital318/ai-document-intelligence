@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isValidUuid } from "@/lib/documents";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 import { createClient } from "@/lib/supabase/server";
 
 const SIGNED_URL_TTL_SECONDS = 60;
@@ -34,11 +35,10 @@ export async function GET(
     .maybeSingle();
 
   if (error) {
-    console.error(
-      "[documents/view] Document lookup failed:",
-      error.code,
-      error.message,
-    );
+    logServerEvent("documents/view", "error", "Document lookup failed", {
+      code: readErrorCode(error),
+      category: "lookup",
+    });
     return new NextResponse("Document not found", { status: 404 });
   }
 
@@ -51,10 +51,10 @@ export async function GET(
     .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
 
   if (signError || !signed?.signedUrl) {
-    console.error(
-      "[documents/view] Failed to create signed URL:",
-      signError?.message ?? "no URL returned",
-    );
+    logServerEvent("documents/view", "error", "Failed to create signed URL", {
+      code: readErrorCode(signError),
+      category: "signed_url",
+    });
     return new NextResponse("Document not found", { status: 404 });
   }
 

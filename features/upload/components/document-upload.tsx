@@ -119,7 +119,7 @@ export function DocumentUpload() {
       });
 
     if (uploadError) {
-      console.error("Document upload to storage failed:", uploadError.message);
+      console.error("Document upload to storage failed");
       setStatus("idle");
       setErrorMessage("The upload failed. Please try again.");
       return;
@@ -136,7 +136,7 @@ export function DocumentUpload() {
     });
 
     if (insertError) {
-      console.error("Document record insert failed:", insertError.message);
+      console.error("Document record insert failed");
 
       // Best-effort cleanup so the storage object is not orphaned. A cleanup
       // failure is logged but must not mask the original insert failure.
@@ -144,10 +144,7 @@ export function DocumentUpload() {
         .from("documents")
         .remove([storagePath]);
       if (removeError) {
-        console.error(
-          "Cleanup of uploaded storage object failed:",
-          removeError.message,
-        );
+        console.error("Cleanup of uploaded storage object failed");
       }
 
       setStatus("idle");

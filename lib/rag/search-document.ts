@@ -11,6 +11,7 @@ import {
   toVectorLiteral,
 } from "@/lib/openai/embeddings";
 import { classifyProcessingError } from "@/lib/openai/errors";
+import { logServerEvent } from "@/lib/observability/log";
 import {
   RAG_MATCH_COUNT,
   RAG_SIMILARITY_THRESHOLD,
@@ -56,17 +57,15 @@ function logSearch(
     documentId?: string;
     matchCount?: number;
     category?: string;
+    durationMs?: number;
   } = {},
 ) {
-  const parts = [event];
-  if (details.documentId) parts.push(`document=${details.documentId}`);
-  if (details.matchCount != null) parts.push(`matches=${details.matchCount}`);
-  if (details.category) parts.push(`category=${details.category}`);
-  if (level === "error") {
-    console.error("[documents/search]", ...parts);
-  } else {
-    console.info("[documents/search]", ...parts);
-  }
+  logServerEvent("documents/search", level, event, {
+    document: details.documentId,
+    matches: details.matchCount,
+    category: details.category,
+    duration_ms: details.durationMs,
+  });
 }
 
 function readUuid(value: unknown): string | null {
@@ -153,6 +152,7 @@ export async function searchDocument(params: {
   }
 
   const documentId = params.documentId;
+  const startedAt = Date.now();
   const supabase = await createClient();
 
   const { data: document, error: lookupError } = await supabase
@@ -244,6 +244,7 @@ export async function searchDocument(params: {
   logSearch("info", "Retrieval completed", {
     documentId,
     matchCount: matches.length,
+    durationMs: Date.now() - startedAt,
   });
 
   return {

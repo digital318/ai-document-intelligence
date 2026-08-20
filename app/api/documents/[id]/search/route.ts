@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isValidUuid } from "@/lib/documents";
+import { logServerEvent } from "@/lib/observability/log";
 import { searchDocument } from "@/lib/rag/search-document";
+import {
+  consumeAiRateLimit,
+  rateLimitedResponse,
+} from "@/lib/security/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 const GENERIC_ERROR = "Unable to complete search. Please try again.";
 const NOT_FOUND_ERROR = "Document not found";
@@ -43,6 +49,23 @@ export async function POST(
   const parsed = searchRequestSchema.safeParse(body);
   if (!parsed.success) {
     return jsonError(INVALID_QUERY_ERROR, 400);
+  }
+
+  const supabase = await createClient();
+  const rateLimit = await consumeAiRateLimit(supabase, "semantic_search");
+  if (!rateLimit.ok) {
+    logServerEvent("documents/search", "error", "Rate limit check failed", {
+      document: id,
+      status: 500,
+    });
+    return jsonError(GENERIC_ERROR, 500);
+  }
+  if (!rateLimit.allowed) {
+    logServerEvent("documents/search", "info", "Rate limited", {
+      document: id,
+      status: 429,
+    });
+    return rateLimitedResponse(rateLimit.resetAt);
   }
 
   const outcome = await searchDocument({

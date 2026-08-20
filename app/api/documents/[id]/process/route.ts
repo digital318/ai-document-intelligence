@@ -29,6 +29,11 @@ import {
   documentAnalysisSchema,
   type DocumentAnalysis,
 } from "@/lib/openai/schemas/document-analysis";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
+import {
+  consumeAiRateLimit,
+  rateLimitedResponse,
+} from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 300;
@@ -49,36 +54,38 @@ function jsonError(message: string, status: number) {
 function logProcessEvent(
   stage: string,
   details: {
+    documentId?: string;
     jobId?: string;
     openaiRequestId?: string | null;
     failureCode?: FailureCode | string;
+    durationMs?: number;
+    statusCode?: number;
   } = {},
 ) {
-  const parts = [stage];
-  if (details.jobId) parts.push(`job=${details.jobId}`);
-  if (details.openaiRequestId) {
-    parts.push(`openai_request_id=${details.openaiRequestId}`);
-  }
-  if (details.failureCode) parts.push(`failure_code=${details.failureCode}`);
-  console.error("[documents/process]", ...parts);
+  logServerEvent("documents/process", "error", stage, {
+    document: details.documentId,
+    job: details.jobId,
+    openai_request_id: details.openaiRequestId,
+    failure_code: details.failureCode,
+    duration_ms: details.durationMs,
+    status: details.statusCode,
+  });
 }
 
 function logProcessError(
   stage: string,
   error: unknown,
   details: {
+    documentId?: string;
     jobId?: string;
     openaiRequestId?: string | null;
     failureCode?: FailureCode | string;
   } = {},
 ) {
   logProcessEvent(stage, details);
-  if (error && typeof error === "object") {
-    const record = error as { code?: unknown; status?: unknown };
-    const code = record.code ?? record.status;
-    if (code != null) {
-      console.error("[documents/process]", stage, "code", code);
-    }
+  const code = readErrorCode(error);
+  if (code != null) {
+    logServerEvent("documents/process", "error", stage, { code });
   }
 }
 
@@ -229,7 +236,9 @@ export async function POST(
     .maybeSingle();
 
   if (lookupError) {
-    logProcessError("Document lookup failed", lookupError);
+    logProcessError("Document lookup failed", lookupError, {
+      documentId: id,
+    });
     return jsonError(NOT_FOUND_ERROR, 404);
   }
 
@@ -261,6 +270,22 @@ export async function POST(
     ).includes(previousStatus);
   } else {
     hadValidPreviousResult = Boolean(existingResult);
+  }
+
+  const rateLimit = await consumeAiRateLimit(supabase, "document_analysis");
+  if (!rateLimit.ok) {
+    logServerEvent("documents/process", "error", "Rate limit check failed", {
+      document: document.id,
+      status: 500,
+    });
+    return jsonError(GENERIC_ERROR, 500);
+  }
+  if (!rateLimit.allowed) {
+    logServerEvent("documents/process", "info", "Rate limited", {
+      document: document.id,
+      status: 429,
+    });
+    return rateLimitedResponse(rateLimit.resetAt);
   }
 
   const { data: claimedJobId, error: claimError } = await supabase.rpc(
@@ -497,12 +522,13 @@ export async function POST(
       );
     }
 
-    console.info(
-      "[documents/process]",
-      "Analysis completed",
-      `job=${jobId}`,
-      openaiRequestId ? `openai_request_id=${openaiRequestId}` : "",
-    );
+    logServerEvent("documents/process", "info", "Analysis completed", {
+      document: document.id,
+      job: jobId,
+      openai_request_id: openaiRequestId,
+      duration_ms: elapsedMs(processingStartedAt),
+      status: 200,
+    });
 
     revalidateDocumentPaths(document.id);
 

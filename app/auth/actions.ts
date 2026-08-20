@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getSiteUrl } from "@/lib/env/public";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthActionResult = {
@@ -102,12 +103,22 @@ export async function signUp(formData: FormData): Promise<AuthActionResult> {
     return { error: "Passwords do not match." };
   }
 
+  let emailRedirectTo: string;
+  try {
+    emailRedirectTo = `${getSiteUrl()}/auth/callback`;
+  } catch {
+    console.error("[auth] Site URL is not configured");
+    return {
+      error: "Unable to create account. Please try again.",
+    };
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: "http://localhost:3000/auth/callback",
+      emailRedirectTo,
     },
   });
 

@@ -12,6 +12,7 @@ import {
   type AnalysisMimeType,
 } from "@/lib/documents";
 import { getOpenAIClient } from "@/lib/openai/client";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 
 const FILE_INPUT_MIME_TYPES = new Set<AnalysisMimeType>([
   PDF_MIME_TYPE,
@@ -58,18 +59,11 @@ export interface PrepareOpenAIDocumentInputParams {
 }
 
 function logInputError(stage: string, error: unknown) {
-  if (error && typeof error === "object") {
-    const record = error as { code?: unknown; status?: unknown; message?: unknown };
-    const code = record.code ?? record.status;
-    const message =
-      typeof record.message === "string"
-        ? record.message.slice(0, 200)
-        : "unexpected error";
-    console.error("[documents/process]", stage, code, message);
-    return;
-  }
-
-  console.error("[documents/process]", stage, "unexpected error");
+  const code = readErrorCode(error);
+  logServerEvent("documents/process", "error", stage, {
+    code,
+    category: "openai_file",
+  });
 }
 
 async function uploadTemporaryOpenAIFile(

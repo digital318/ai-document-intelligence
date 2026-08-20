@@ -24,6 +24,7 @@ import {
   isValidUuid,
 } from "@/lib/documents";
 import { formatDateTime, toNonNegativeInt } from "@/lib/format";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -260,11 +261,10 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
     .maybeSingle();
 
   if (error) {
-    console.error(
-      "[documents/detail] Document lookup failed:",
-      error.code,
-      error.message,
-    );
+    logServerEvent("documents/detail", "error", "Document lookup failed", {
+      code: readErrorCode(error),
+      category: "lookup",
+    });
     notFound();
   }
 
@@ -292,10 +292,14 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
     .returns<ProcessingJobRow[]>();
 
   if (jobsError) {
-    console.error(
-      "[documents/detail] Processing history lookup failed:",
-      jobsError.code,
-      jobsError.message,
+    logServerEvent(
+      "documents/detail",
+      "error",
+      "Processing history lookup failed",
+      {
+        code: readErrorCode(jobsError),
+        category: "jobs",
+      },
     );
   }
 

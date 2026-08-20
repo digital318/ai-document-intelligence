@@ -311,6 +311,76 @@ Contextualization and answer generation both set `store: false`. Questions, answ
 
 Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v2`. The configured document model is unchanged.
 
+## Phase 8A — Production Readiness
+
+Phase 8A prepares the app for a public Vercel deployment. It does **not** add billing, external analytics, cross-document Q&A, or a Content-Security-Policy. Do not deploy until the checklist at the end of this section is complete.
+
+Apply `supabase/migrations/20260820_phase_8a_ai_rate_limits.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
+
+**Environment variables**
+
+Copy `.env.example` to `.env.local` for local development. Never commit real keys. `OPENAI_API_KEY` must never be prefixed with `NEXT_PUBLIC_`.
+
+| Name | Where it is used |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server Supabase clients |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server Supabase clients |
+| `NEXT_PUBLIC_SITE_URL` | Canonical site origin (auth email redirects) |
+| `OPENAI_API_KEY` | Server-only OpenAI client |
+| `OPENAI_DOCUMENT_MODEL` | Document analysis, retrieval text, and Q&A |
+| `OPENAI_EMBEDDING_MODEL` | Vector embeddings |
+| `OPENAI_REQUEST_TIMEOUT_MS` | OpenAI SDK request timeout |
+
+Local `NEXT_PUBLIC_SITE_URL` is `http://localhost:3000`. Production must set the HTTPS Vercel production URL. Server helpers fail clearly when a required variable is missing and never log secret values.
+
+Auth email confirmation uses `getSiteUrl()`:
+
+1. `NEXT_PUBLIC_SITE_URL`
+2. `NEXT_PUBLIC_VERCEL_URL` (https added when needed; preview/non-production only)
+3. `http://localhost:3000`
+
+The PKCE callback at `/auth/callback` is unchanged. SSR cookie auth, protected routes, and logged-in/logged-out redirects are unchanged.
+
+**AI rate limiting**
+
+Expensive AI routes consume a per-user hourly quota **before** OpenAI work and **before** creating processing-job rows:
+
+| Action | Route | Limit |
+| --- | --- | --- |
+| `document_analysis` | `POST /api/documents/<id>/process` | 10 / hour |
+| `document_index` | `POST /api/documents/<id>/index` | 10 / hour |
+| `semantic_search` | `POST /api/documents/<id>/search` | 60 / hour |
+| `document_qa` | `POST /api/documents/<id>/ask` | 30 / hour |
+
+Limits live in `public.consume_ai_rate_limit(p_action)`. The browser cannot send a user id, numeric limit, or action quota. Identity is `auth.uid()` from the cookie session. Ask This Document counts as `document_qa` only; internal retrieval is not a second `semantic_search` charge.
+
+`public.ai_rate_limits` has RLS enabled and no authenticated CRUD policies. Blocked requests return HTTP 429 with `{ "error": "Too many requests. Please try again later." }` and `Retry-After` when the reset time is known. The UI shows: `You've reached the temporary request limit. Please try again later.`
+
+**Security headers** (global, via `next.config.ts`)
+
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-Frame-Options: DENY`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+**Private Storage and RLS**
+
+The `documents` bucket stays private. View Original / Download still use short-lived signed URLs. Storage paths are not returned to the UI. The 25 MiB upload limit and allowed file-type checks are unchanged. `documents`, `document_results`, `document_processing_jobs`, and `document_chunks` remain owner-scoped. Rate-limit rows are not readable through PostgREST.
+
+**Health**
+
+- `GET /api/health` — `{ "status": "ok" }` or `{ "status": "degraded" }`. No keys, URLs, models, or stack traces. Does not call OpenAI.
+- `GET /api/health/supabase` — existing connectivity probe, preserved.
+
+**Production deployment prerequisites**
+
+1. Apply all Supabase migrations, including Phase 8A.
+2. Set the production environment variables listed above (names only; never paste secrets into git).
+3. Set `NEXT_PUBLIC_SITE_URL` to the HTTPS production domain.
+4. Confirm the Supabase Auth redirect URLs include `https://<production-domain>/auth/callback`.
+5. Confirm the `documents` Storage bucket is private.
+6. Deploy to Vercel only after those steps. This repository does not deploy automatically.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

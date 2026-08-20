@@ -1,33 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
-
-/**
- * Reads and validates the Supabase environment variables.
- *
- * Note: `process.env.NEXT_PUBLIC_*` must be referenced statically so Next.js
- * can inline the values into the client bundle at build time.
- */
-function getSupabaseConfig(): { url: string; publishableKey: string } {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url) {
-    throw new Error(
-      "Missing environment variable: NEXT_PUBLIC_SUPABASE_URL. " +
-        "Add it to your .env.local file (see .env.example). " +
-        "You can find this value in your Supabase dashboard under Project Settings > API.",
-    );
-  }
-
-  if (!publishableKey) {
-    throw new Error(
-      "Missing environment variable: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. " +
-        "Add it to your .env.local file (see .env.example). " +
-        "You can find this value in your Supabase dashboard under Project Settings > API.",
-    );
-  }
-
-  return { url, publishableKey };
-}
+import { getPublicSupabaseConfig } from "@/lib/env/public";
 
 /**
  * Creates a browser Supabase client for Client Components.
@@ -36,6 +8,6 @@ function getSupabaseConfig(): { url: string; publishableKey: string } {
  * calls reuse the same instance.
  */
 export function createClient() {
-  const { url, publishableKey } = getSupabaseConfig();
+  const { url, publishableKey } = getPublicSupabaseConfig();
   return createBrowserClient(url, publishableKey);
 }

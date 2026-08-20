@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { isValidUuid } from "@/lib/documents";
+import { logServerEvent } from "@/lib/observability/log";
 import { parseAskRequest } from "@/lib/rag/conversation-history";
 import { answerDocumentQuestion } from "@/lib/rag/answer-document-question";
+import {
+  consumeAiRateLimit,
+  rateLimitedResponse,
+} from "@/lib/security/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 120;
 
@@ -46,6 +52,23 @@ export async function POST(
       parsed.reason === "history" ? INVALID_HISTORY_ERROR : INVALID_QUESTION_ERROR,
       400,
     );
+  }
+
+  const supabase = await createClient();
+  const rateLimit = await consumeAiRateLimit(supabase, "document_qa");
+  if (!rateLimit.ok) {
+    logServerEvent("documents/ask", "error", "Rate limit check failed", {
+      document: id,
+      status: 500,
+    });
+    return jsonError(GENERIC_ERROR, 500);
+  }
+  if (!rateLimit.allowed) {
+    logServerEvent("documents/ask", "info", "Rate limited", {
+      document: id,
+      status: 429,
+    });
+    return rateLimitedResponse(rateLimit.resetAt);
   }
 
   const outcome = await answerDocumentQuestion({

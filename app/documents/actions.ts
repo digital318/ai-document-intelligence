@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { isValidUuid } from "@/lib/documents";
+import { logServerEvent, readErrorCode } from "@/lib/observability/log";
 import { createClient } from "@/lib/supabase/server";
 
 export type DeleteDocumentResult = {
@@ -40,11 +41,10 @@ export async function deleteDocument(
     .maybeSingle();
 
   if (lookupError) {
-    console.error(
-      "[documents/delete] Document lookup failed:",
-      lookupError.code,
-      lookupError.message,
-    );
+    logServerEvent("documents/delete", "error", "Document lookup failed", {
+      code: readErrorCode(lookupError),
+      category: "lookup",
+    });
     return GENERIC_FAILURE;
   }
 
@@ -59,10 +59,10 @@ export async function deleteDocument(
     .remove([document.storage_path]);
 
   if (storageError) {
-    console.error(
-      "[documents/delete] Storage removal failed:",
-      storageError.message,
-    );
+    logServerEvent("documents/delete", "error", "Storage removal failed", {
+      code: readErrorCode(storageError),
+      category: "storage",
+    });
     return GENERIC_FAILURE;
   }
 
@@ -73,10 +73,14 @@ export async function deleteDocument(
 
   if (deleteError) {
     // The file is gone but the row remains: report a safe partial failure.
-    console.error(
-      "[documents/delete] Row deletion failed after storage removal:",
-      deleteError.code,
-      deleteError.message,
+    logServerEvent(
+      "documents/delete",
+      "error",
+      "Row deletion failed after storage removal",
+      {
+        code: readErrorCode(deleteError),
+        category: "row_delete",
+      },
     );
     return {
       success: false,

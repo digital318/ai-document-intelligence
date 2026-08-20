@@ -1,3 +1,5 @@
+import { readPublicSupabaseConfig } from "@/lib/env/public";
+
 type HealthResponse = {
   configured: boolean;
   connected: boolean;
@@ -9,23 +11,22 @@ function json(body: HealthResponse, status: number) {
 }
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const config = readPublicSupabaseConfig();
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!config) {
     return json(
       {
         configured: false,
         connected: false,
         error: "Supabase environment variables are not configured",
       },
-      503
+      503,
     );
   }
 
   let healthUrl: URL;
   try {
-    healthUrl = new URL("/auth/v1/health", supabaseUrl);
+    healthUrl = new URL("/auth/v1/health", config.url);
   } catch {
     return json(
       {
@@ -33,7 +34,7 @@ export async function GET() {
         connected: false,
         error: "Supabase URL is not a valid URL",
       },
-      503
+      503,
     );
   }
 
@@ -44,7 +45,7 @@ export async function GET() {
     // usable here.)
     const response = await fetch(healthUrl, {
       method: "GET",
-      headers: { apikey: supabaseKey },
+      headers: { apikey: config.publishableKey },
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     });
@@ -60,7 +61,7 @@ export async function GET() {
           connected: false,
           error: "Supabase rejected the provided credentials",
         },
-        503
+        503,
       );
     }
 
@@ -70,10 +71,11 @@ export async function GET() {
         connected: false,
         error: `Supabase responded with an unexpected status (${response.status})`,
       },
-      503
+      503,
     );
   } catch (error) {
-    const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+    const timedOut =
+      error instanceof DOMException && error.name === "TimeoutError";
     return json(
       {
         configured: true,
@@ -82,7 +84,7 @@ export async function GET() {
           ? "Connection to Supabase timed out"
           : "Unable to reach Supabase",
       },
-      503
+      503,
     );
   }
 }
