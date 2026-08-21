@@ -75,7 +75,7 @@ export function RecentActivity({
             No activity yet
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Document and processing activity will appear here.
+            Document processing activity will appear here.
           </p>
         </div>
       ) : (

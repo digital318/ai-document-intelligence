@@ -58,7 +58,7 @@ function actionLabel(status: string, placement: "table" | "detail"): string | nu
   if (status === "queued" || status === "processing") return null;
   if (status === "failed") return "Retry analysis";
   if (status === "uploaded") return "Analyze";
-  if (hasViewableAnalysis(status) && placement === "detail") return "Analyze again";
+  if (hasViewableAnalysis(status) && placement === "detail") return "Analyze Again";
   return null;
 }
 
@@ -102,8 +102,8 @@ export function AnalyzeDocumentButton({
         className={buttonClasses(placement, "disabled")}
         aria-label={`Analysis in progress for ${accessibleName}`}
       >
-        <Loader2 className={`${iconClass} animate-spin`} />
-        Processing...
+        <Loader2 className={`${iconClass} animate-spin`} aria-hidden="true" />
+        Analyzing...
       </span>
     );
   }

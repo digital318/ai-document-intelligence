@@ -290,11 +290,12 @@ export function DocumentUpload() {
           onClick={handleUpload}
           disabled={!selectedFile || status === "uploading"}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-busy={status === "uploading"}
         >
           {status === "uploading" && (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           )}
-          {status === "uploading" ? "Uploading…" : "Upload"}
+          {status === "uploading" ? "Uploading..." : "Upload"}
         </button>
         {selectedFile && status !== "uploading" && (
           <button

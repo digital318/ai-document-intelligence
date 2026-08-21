@@ -365,6 +365,16 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
       </div>
 
       <div className="space-y-6">
+        <DocumentDetails
+          fileName={row.file_name}
+          mimeType={row.mime_type}
+          fileSizeBytes={row.file_size_bytes}
+          createdAt={row.created_at}
+          status={row.status}
+          detectedDocumentType={detectedType}
+          pageCount={row.page_count}
+        />
+
         {hasViewableAnalysis && result ? (
           <DocumentAnalysisView result={result} needsReview={needsReview} />
         ) : row.status === "processed" || row.status === "needs_review" ? (
@@ -407,16 +417,6 @@ export default async function DocumentPage({ params }: DocumentPageProps) {
             />
           </>
         ) : null}
-
-        <DocumentDetails
-          fileName={row.file_name}
-          mimeType={row.mime_type}
-          fileSizeBytes={row.file_size_bytes}
-          createdAt={row.created_at}
-          status={row.status}
-          detectedDocumentType={detectedType}
-          pageCount={row.page_count}
-        />
 
         <ProcessingHistory jobs={historyJobs} loadError={Boolean(jobsError)} />
       </div>

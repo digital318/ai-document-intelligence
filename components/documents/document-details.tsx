@@ -53,7 +53,7 @@ export function DocumentDetails({
           id="document-details-heading"
           className="text-sm font-semibold text-zinc-900 dark:text-zinc-50"
         >
-          Document details
+          Document information
         </h3>
       </div>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">

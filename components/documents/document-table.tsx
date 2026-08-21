@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { FileText } from "lucide-react";
 import {
   formatMimeTypeLabel,
@@ -59,12 +60,13 @@ export function DocumentTable({
                   <div className="flex items-center gap-2.5">
                     <FileText className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
                     <div className="min-w-0">
-                      <p
-                        className="truncate font-medium text-zinc-900 dark:text-zinc-50"
+                      <Link
+                        href={`/documents/${doc.id}`}
+                        className="block truncate font-medium text-zinc-900 hover:text-indigo-600 dark:text-zinc-50 dark:hover:text-indigo-400"
                         title={doc.file_name}
                       >
                         {doc.file_name}
-                      </p>
+                      </Link>
                       {doc.document_type ? (
                         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           {doc.document_type}

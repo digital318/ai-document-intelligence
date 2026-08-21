@@ -162,7 +162,7 @@ export type DocumentSort = keyof typeof SORT_OPTIONS;
 
 export const DEFAULT_SORT: DocumentSort = "newest";
 
-const MAX_SEARCH_LENGTH = 200;
+export const MAX_SEARCH_LENGTH = 200;
 
 export interface DocumentListParams {
   q: string;
@@ -185,7 +185,9 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 export function parseDocumentListParams(
   raw: RawSearchParams,
 ): DocumentListParams {
-  const q = (firstValue(raw.q) ?? "").trim().slice(0, MAX_SEARCH_LENGTH);
+  const q = (firstValue(raw.search) ?? firstValue(raw.q) ?? "")
+    .trim()
+    .slice(0, MAX_SEARCH_LENGTH);
 
   const statusRaw = firstValue(raw.status);
   const status =
@@ -236,7 +238,7 @@ export function buildDocumentsHref(
   page: number,
 ): string {
   const query = new URLSearchParams();
-  if (params.q) query.set("q", params.q);
+  if (params.q) query.set("search", params.q);
   if (params.status) query.set("status", params.status);
   if (params.type) query.set("type", params.type);
   if (params.sort !== DEFAULT_SORT) query.set("sort", params.sort);

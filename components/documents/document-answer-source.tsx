@@ -36,7 +36,7 @@ export function DocumentAnswerSourceCard({
   const excerpt = source.excerpt.trim();
 
   return (
-    <li className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <li className="min-w-0 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
         {sourceLabel(source.sourceId, index)}
       </p>
@@ -61,7 +61,7 @@ export function DocumentAnswerSourceCard({
         ) : null}
       </dl>
       {excerpt ? (
-        <blockquote className="mt-2 border-l-2 border-zinc-300 pl-2 text-xs leading-relaxed break-words text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+        <blockquote className="mt-2 overflow-hidden border-l-2 border-zinc-300 pl-2 text-xs leading-relaxed break-words text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
           {excerpt}
         </blockquote>
       ) : null}
@@ -72,7 +72,7 @@ export function DocumentAnswerSourceCard({
         className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
         aria-label={`View original ${fileName}`}
       >
-        <ExternalLink className="h-3 w-3" />
+        <ExternalLink className="h-3 w-3" aria-hidden="true" />
         View Original
       </a>
     </li>

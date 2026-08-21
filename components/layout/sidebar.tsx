@@ -11,6 +11,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { APP_VERSION } from "@/lib/app-info";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -48,7 +49,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-zinc-200 px-4 dark:border-zinc-800">
           <Link href="/" className="flex items-center gap-2.5" onClick={onClose}>
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
-              <BrainCircuit className="h-5 w-5" />
+              <BrainCircuit className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
               AI Document
@@ -79,13 +80,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
+                aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   active
                     ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400"
                     : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
                 }`}
               >
-                <Icon className="h-4.5 w-4.5 shrink-0" />
+                <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
                 {item.label}
               </Link>
             );
@@ -95,7 +97,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="shrink-0 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <p className="text-xs text-zinc-400 dark:text-zinc-500">
-            v0.1.0 &middot; Sprint 2
+            v{APP_VERSION}
           </p>
         </div>
       </aside>

@@ -42,7 +42,8 @@ export function DocumentQaIndex({
           Q&A Index
         </h3>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Vector index used by Ask This Document. Distinct from AI analysis.
+          Makes this document available for Ask This Document. Separate from AI
+          analysis.
         </p>
       </div>
 
@@ -62,7 +63,7 @@ export function DocumentQaIndex({
               {modelName ? (
                 <div className="min-w-0">
                   <dt className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-                    Embedding model
+                    Index model
                   </dt>
                   <dd className="mt-1 text-sm break-words text-zinc-700 dark:text-zinc-300">
                     {modelName}

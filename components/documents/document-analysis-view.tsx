@@ -64,15 +64,15 @@ export function DocumentAnalysisView({
       </p>
 
       <section
-        aria-labelledby="analysis-summary-heading"
+        aria-labelledby="ai-analysis-heading"
         className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
       >
         <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
           <h3
-            id="analysis-summary-heading"
+            id="ai-analysis-heading"
             className="text-sm font-semibold text-zinc-900 dark:text-zinc-50"
           >
-            Analysis summary
+          AI analysis
           </h3>
         </div>
 
@@ -110,9 +110,8 @@ export function DocumentAnalysisView({
             </p>
           </div>
 
-          <dl className="grid grid-cols-1 gap-4 border-t border-zinc-100 pt-4 sm:grid-cols-3 dark:border-zinc-800/60">
+          <dl className="grid grid-cols-1 gap-4 border-t border-zinc-100 pt-4 sm:grid-cols-2 dark:border-zinc-800/60">
             <DetailMeta label="Analysis model" value={result.model_name} />
-            <DetailMeta label="Prompt version" value={result.prompt_version} />
             <DetailMeta
               label="Result timestamp"
               value={formatDateTime(processedAt)}

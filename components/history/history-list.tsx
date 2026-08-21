@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { Clock, Upload } from "lucide-react";
 import {
   JOB_STATUS_LABELS,
   type JobStatus,
@@ -79,9 +79,16 @@ export function HistoryList({ jobs }: { jobs: HistoryJobItem[] }) {
             No processing history yet
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Processing attempts will appear here after you analyze or index a
-            document.
+            Document processing activity will appear here after you analyze or
+            index a document.
           </p>
+          <Link
+            href="/documents"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            View Documents
+          </Link>
         </div>
       </div>
     );

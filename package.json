@@ -1,7 +1,8 @@
 {
   "name": "ai-document-intelligence",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "AI-powered document intelligence platform for secure document analysis, semantic retrieval, and grounded conversational Q&A.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Document Intelligence",
+  title: {
+    default: "AI Document Intelligence",
+    template: "%s · AI Document Intelligence",
+  },
   description:
     "AI-powered document analysis, semantic retrieval, and grounded document Q&A.",
 };

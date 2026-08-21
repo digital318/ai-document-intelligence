@@ -200,7 +200,7 @@ function activityFromJob(job: ProcessingJobRow): DashboardActivityItem | null {
         kind: "processing_queued",
         text: indexing
           ? `${fileName} queued for indexing`
-          : `${fileName} queued for processing`,
+          : `${fileName} queued for analysis`,
         timestamp: job.created_at,
       };
     case "running":
@@ -209,7 +209,7 @@ function activityFromJob(job: ProcessingJobRow): DashboardActivityItem | null {
         kind: "processing_started",
         text: indexing
           ? `${fileName} indexing started`
-          : `${fileName} processing started`,
+          : `${fileName} analysis started`,
         timestamp: job.started_at ?? job.created_at,
       };
     case "completed":
@@ -218,7 +218,7 @@ function activityFromJob(job: ProcessingJobRow): DashboardActivityItem | null {
         kind: "processing_completed",
         text: indexing
           ? `${fileName} indexing completed`
-          : `${fileName} processing completed`,
+          : `${fileName} analysis completed`,
         timestamp: job.completed_at ?? job.created_at,
       };
     case "failed":
@@ -227,7 +227,7 @@ function activityFromJob(job: ProcessingJobRow): DashboardActivityItem | null {
         kind: "processing_failed",
         text: indexing
           ? `${fileName} indexing failed`
-          : `${fileName} processing failed`,
+          : `${fileName} analysis failed`,
         timestamp: job.completed_at ?? job.created_at,
       };
     default:

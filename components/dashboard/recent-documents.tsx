@@ -30,13 +30,13 @@ export function RecentDocuments({
       ) : documents.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-12 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">
-            <FileText className="h-6 w-6" />
+            <FileText className="h-6 w-6" aria-hidden="true" />
           </span>
           <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
             No documents yet
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Uploaded documents will appear here.
+            Upload your first document to begin.
           </p>
           <Link
             href="/upload"
@@ -51,7 +51,7 @@ export function RecentDocuments({
           {documents.map((document) => (
             <li key={document.id}>
               <Link
-                href="/documents"
+                href={`/documents/${document.id}`}
                 className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
               >
                 <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">

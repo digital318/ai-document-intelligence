@@ -53,6 +53,18 @@ export function DocumentFilters({ params }: { params: DocumentListParams }) {
         next.delete(key);
       }
     }
+
+    const searchValue =
+      "search" in updates
+        ? updates.search
+        : next.get("search") || next.get("q") || null;
+    next.delete("q");
+    if (searchValue) {
+      next.set("search", searchValue);
+    } else {
+      next.delete("search");
+    }
+
     // Any filter/search/sort change restarts pagination at page 1.
     next.delete("page");
     const queryString = next.toString();
@@ -64,7 +76,7 @@ export function DocumentFilters({ params }: { params: DocumentListParams }) {
   function submitSearch(value: string) {
     const trimmed = value.trim();
     lastSubmittedSearch.current = trimmed;
-    updateParams({ q: trimmed || null });
+    updateParams({ search: trimmed || null });
   }
 
   function handleSearchChange(value: string) {
@@ -102,6 +114,12 @@ export function DocumentFilters({ params }: { params: DocumentListParams }) {
           type="search"
           value={search}
           onChange={(event) => handleSearchChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            submitSearch(search);
+          }}
           placeholder="Search documents…"
           aria-label="Search documents by name"
           className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-2 pl-9 pr-9 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 [&::-webkit-search-cancel-button]:hidden"

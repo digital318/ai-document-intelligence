@@ -97,8 +97,9 @@ export function LoginForm({ confirmationError = false }: LoginFormProps) {
           type="submit"
           disabled={pending}
           className="mt-6 flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-busy={pending}
         >
-          {pending ? "Signing in…" : "Sign in"}
+          {pending ? "Signing in..." : "Sign in"}
         </button>
 
         <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">

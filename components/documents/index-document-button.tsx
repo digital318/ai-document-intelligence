@@ -47,7 +47,7 @@ function actionLabel(embeddingStatus: EmbeddingStatus): string {
     case "indexing":
       return "Indexing...";
     case "indexed":
-      return "Re-index for Q&A";
+      return "Re-index";
   }
 }
 

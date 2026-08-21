@@ -73,6 +73,7 @@ export function DashboardMetrics({
               </p>
               <span
                 className={`flex h-9 w-9 items-center justify-center rounded-lg ${card.iconClasses}`}
+                aria-hidden="true"
               >
                 <Icon className="h-4.5 w-4.5" />
               </span>

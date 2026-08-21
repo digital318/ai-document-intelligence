@@ -1,15 +1,12 @@
 # Settings Feature
 
-Manages user preferences and platform configuration.
+Read-only account and application details for the authenticated user.
 
-## Purpose
+The Settings page at `/settings` shows:
 
-- Manage account and profile settings.
-- Configure AI processing options (model preferences, analysis defaults).
-- Handle API keys, integrations, and notification preferences.
+- Account email and authenticated status
+- Application name, version, and description
+- A privacy / AI notice, including that Ask This Document history is not saved
 
-## Structure (planned)
-
-- `components/` — settings forms, sections, and toggles.
-- `hooks/` — hooks for reading and persisting settings.
-- `index.ts` — public exports for the feature.
+It does not edit profiles, change passwords, expose internal IDs, or display
+API keys, tokens, or database metadata.

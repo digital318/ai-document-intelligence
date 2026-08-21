@@ -1,397 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Document Intelligence
 
-## Getting Started
+An AI-powered document intelligence platform for secure document analysis, semantic retrieval, and grounded conversational Q&A.
 
-First, run the development server:
+## Live Application
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Production URL:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+https://ai-document-intelligence-ten.vercel.app
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sign in or create an account to use the app. Do not share production credentials.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Core Features
 
-## Phase 3 — Backend Foundation (Supabase)
+- Secure authentication
+- Private document upload and storage
+- Multi-format document analysis
+- Structured AI extraction
+- Semantic vector indexing
+- Document-specific semantic search
+- Grounded RAG Q&A
+- Conversational follow-up questions
+- Source citations and evidence excerpts
+- Prompt-injection defenses
+- Per-user RLS isolation
+- AI request rate limiting
 
-The migration `supabase/migrations/20260805193000_phase_3_backend_foundation.sql` sets up the backend schema:
+## Supported Formats
 
-- **Tables**
-  - `public.profiles` — one row per auth user, auto-created by a trigger on `auth.users`.
-  - `public.documents` — metadata for uploaded files (name, storage path, MIME type, size, status).
-  - `public.document_processing_jobs` — async AI processing queue, one or more jobs per document.
-  - `public.document_results` — AI analysis output (summary, extracted fields, confidence), one row per document.
-- **Storage** — a private `documents` bucket (25 MiB limit; PDF, JPEG, PNG, WebP, DOCX, and plain-text only). Files must be stored at `<user-id>/<document-id>/<filename>`; storage policies only allow users to access objects under their own user-id folder.
-- **Security** — Row Level Security is enabled on all four tables and all policies are scoped to the `authenticated` role, so every read/write requires a signed-in user who owns the row (directly or via the parent document). There is no anonymous access.
-- **Deferred** — chat, embeddings, and document-chunk tables are intentionally not part of this phase.
+- PDF
+- DOCX
+- TXT
+- JPEG
+- PNG
+- WebP
 
-## Phase 5D — Live Dashboard
+## Architecture
 
-The authenticated dashboard at `/` reads live per-user data through the cookie-based server Supabase client. Row Level Security remains the access boundary; the app never uses a service-role or secret key for dashboard queries.
-
-- **Metrics** — `public.get_dashboard_metrics()` (see `supabase/migrations/20260814_phase_5d_dashboard_metrics.sql`) returns `total_documents`, `processed_documents`, `ai_requests_this_month`, and `storage_bytes` for `auth.uid()` only. The function is `SECURITY INVOKER`, filters `user_id = auth.uid()`, and is executable only by `authenticated`.
-- **Recent documents** — the five newest rows from `public.documents` (name, MIME type, size, status, created time). Items link to `/documents`; storage paths are never exposed.
-- **Recent activity** — derived in application code from recent document uploads and `public.document_processing_jobs` (queued / started / completed / failed). There is no separate activity table; deleting a document may remove its upload entry from this feed.
-- **AI Requests** counts processing-job rows created this calendar month, regardless of file format.
-
-## Phase 6C — Multi-Format Document Analysis
-
-Authenticated users can analyze uploaded documents from the library or the analysis page. The browser sends only the document UUID. The server loads `storage_path` and `mime_type` from the RLS-protected `public.documents` row, downloads the private Storage object, and runs a single processing pipeline for every supported type.
-
-**Supported formats**
-
-- PDF (`application/pdf`)
-- Word (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
-- Text (`text/plain`)
-- JPEG (`image/jpeg`)
-- PNG (`image/png`)
-- WebP (`image/webp`)
-
-**How each format is analyzed**
-
-- **PDF** — uploaded to OpenAI as a temporary `user_data` file and sent as `input_file`. Analysis can use both extracted text and page-image understanding.
-- **DOCX / TXT** — uploaded the same way as `input_file` with purpose `user_data`. Analysis is based on extracted textual content. Embedded images and charts inside non-PDF files are **not** analyzed in this phase.
-- **JPEG / PNG / WebP** — uploaded as a temporary vision file and sent as `input_image` with `detail: "original"` so small text and layout are preserved as accurately as practical.
-
-Every attempt writes `public.document_processing_jobs`. The latest structured result is upserted into `public.document_results`. Temporary OpenAI file IDs are deleted after success or failure and are never stored in the database or sent to the browser.
-
-The dashboard Processed, AI Requests, Recent Activity, and Storage Used metrics include every supported format. OCR libraries are still out of scope for analysis. Document indexing, retrieval, and grounded Q&A are Phase 7.
-
-## Phase 6D — Processing Hardening, Quality Controls, and Observability
-
-Phase 6D hardens the existing analysis pipeline. It does not add file types, change the configured model, introduce embeddings, vector search, document chat, OCR libraries, external queues, or OpenAI background mode.
-
-**Atomic processing claims**
-
-`public.claim_document_processing(p_document_id uuid)` claims an owned document in a single PostgreSQL transaction. It updates `public.documents.status` to `queued` only when the current status is `uploaded`, `failed`, `processed`, or `needs_review` and `user_id = auth.uid()`, then inserts one `queued` row in `public.document_processing_jobs`. The first concurrent request receives the new job UUID. The second receives no job id and the process route responds with HTTP 409 (`This document is already being processed.`). The function is `SECURITY INVOKER` with `search_path` emptied; RLS still applies. Execute is granted only to `authenticated`.
-
-**OpenAI SDK retries and timeout**
-
-The official OpenAI Node SDK is configured with `maxRetries: 2` and a request timeout of `OPENAI_REQUEST_TIMEOUT_MS` when that value is a positive integer, otherwise 120000 milliseconds. Invalid timeout configuration is ignored. There is no additional application-level retry loop. Authentication, permission, malformed-request, and structured-output validation failures are not retried beyond SDK defaults (the SDK does not retry those classes of error).
-
-**`store: false`**
-
-Document-analysis Responses API requests set `store: false`. Structured business results continue to be persisted in `public.document_results`. OpenAI Response objects and response ids are not stored in application tables. Temporary OpenAI files are still deleted after success or failure.
-
-**Request correlation**
-
-Each analysis call sends the processing-job UUID as an `X-Client-Request-Id` header through the SDK's per-request `headers` option. After a successful response, `response._request_id` is stored in `document_processing_jobs.openai_request_id` for operational troubleshooting. That value is not shown on document or History pages. Server logs may include the job UUID, OpenAI request id, and failure code. Logs do not include document contents, tokens, API keys, passwords, cookies, or Authorization headers.
-
-**Token usage and duration telemetry**
-
-When the Responses API includes usage metadata, `input_tokens`, `output_tokens`, and `total_tokens` are stored on the processing job together with the configured `model_name`. Missing usage does not fail an otherwise successful analysis. Monetary cost is not calculated. Server-side `processing_duration_ms` is measured after a successful claim and persisted on completion or failure.
-
-**Safe failure categories**
-
-Failed jobs store a machine-readable `failure_code` such as `openai_auth`, `openai_rate_limit`, `openai_timeout`, `structured_output`, or `result_persistence`, plus a concise `error_message` diagnostic. Raw provider bodies, stack traces, credentials, and document content are not persisted. The browser receives only generic messages, for example:
-
-- Rate limit or temporary provider problem: `Analysis is temporarily unavailable. Please try again.`
-- Configuration or authentication problem: `Analysis service is unavailable.`
-- Structured-output or result failure: `Unable to complete analysis. Please try again.`
-
-**Previous successful analysis is preserved**
-
-If a document already has a valid `document_results` row and the user runs Analyze Again, a failed new attempt marks only that processing job as failed. The previous result row is left untouched and remains viewable. Document status is restored to the previous stable value (`processed` or `needs_review`). A document that has never had a successful result is set to `failed`.
-
-**Confidence-based `needs_review`**
-
-After a valid structured analysis, overall `confidence_score >= 0.70` sets document status to `processed`. A lower score sets `needs_review`. The processing job is still `completed` because the AI request succeeded. Field values are not rewritten. Documents in `needs_review` remain fully usable (view analysis, analyze again, view original, download, delete). The analysis page shows a restrained review notice; it does not treat model confidence as a guarantee of correctness. All analyzed documents also show: `AI-generated analysis may contain errors. Verify important information against the original document.`
-
-**History page**
-
-`/history` is an authenticated Server Component that lists the 25 most recent `document_processing_jobs` rows for the current user, with related document names, through the cookie-based Supabase client and RLS. It shows attempt status, job type, created and completed times, duration, model, and token usage when available. Document names link to the analysis page when the document still exists. It does not expose storage paths, OpenAI request ids, error messages, failure codes, or user ids.
-
-Apply `supabase/migrations/20260817193000_phase_6d_processing_hardening.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app.
-
-## Phase 7A — Document Chunking and Vector Embeddings
-
-Phase 7A creates a **private vector index only**. Natural-language Q&A, semantic-search UI, chat, citations, hybrid search, and reranking are not implemented yet.
-
-Apply `supabase/migrations/20260818180000_phase_7a_vector_foundation.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
-
-**pgvector and `document_chunks`**
-
-The migration enables `vector` in the `extensions` schema and creates `public.document_chunks`:
-
-- `content` — deterministic retrieval chunk text
-- `embedding` — `extensions.vector(1536)` (never sent to the browser)
-- `embedding_model` / `embedding_version` (`v1`)
-- optional `page_number` and `section_title`
-- unique `(document_id, embedding_version, chunk_index)`
-- B-tree index on `document_id`
-- HNSW cosine index (`vector_cosine_ops`); IVFFlat is not used
-
-Rows cascade-delete with the parent document. RLS is enabled with authenticated-only SELECT/INSERT/UPDATE/DELETE policies that require `EXISTS` ownership on `public.documents`. There are no anonymous policies and no `SECURITY DEFINER` helpers for chunk access.
-
-**Indexing state**
-
-`public.documents` stores vector state separately from AI analysis:
-
-- `embedding_status`: `not_indexed` | `indexing` | `indexed` | `failed`
-- `embedding_model`, `embedding_version`, `indexed_at`
-
-A document may be `status = processed` (or `needs_review`) and `embedding_status = indexed` at the same time. Indexing never writes `documents.status`.
-
-**Private-document indexing flow**
-
-1. The analysis page shows **Index for Q&A** / **Retry indexing** / **Re-index for Q&A** only for `processed` and `needs_review` documents. The browser POSTs only the document UUID to `/api/documents/<id>/index`.
-2. The route uses the cookie-based authenticated Supabase client and loads `storage_path` from the RLS-protected row. It never accepts `user_id`, `storage_path`, or document text from the browser.
-3. `claim_document_embedding_index()` plus a partial unique index allow at most one active `job_type = embedding_index` job (`queued` or `running`) per document. Analysis jobs are unchanged.
-4. The original private Storage object is downloaded, prepared with the existing OpenAI document-input helpers (PDF, DOCX, TXT, JPEG, PNG, WebP), and converted to normalized retrieval segments via Structured Outputs (`RETRIEVAL_TEXT_VERSION = v1`). Extraction preserves facts, headings, and table rows; it does not summarize away content or follow instructions inside the file. Temporary OpenAI files are deleted after success or failure.
-5. Segments are split into deterministic ~3000–4000 character chunks with ~400–500 character overlap, preferring paragraph, section, and sentence boundaries. Empty chunks are not stored.
-6. Chunk strings are embedded with `OPENAI_EMBEDDING_MODEL` or `text-embedding-3-small`, `dimensions: 1536`, `encoding_format: "float"`. Embedding vectors are never logged or returned to Client Components.
-7. Chunks are upserted for `embedding_version = v1`. Stale higher `chunk_index` rows for that document/version are removed only after the upsert succeeds. A failed embedding generation leaves any previously good index in place. A failed re-index restores `embedding_status = indexed` when `indexed_at` was already set; a first-time failure sets `failed`.
-
-**Library, analysis, history, dashboard**
-
-- The document library keeps **AI analysis** status and adds a compact **Q&A index** indicator (`Not indexed`, `Indexing`, `Ready for Q&A`, `Indexing failed`).
-- The analysis page adds a Q&A Index section (status, and when indexed the embedding model and timestamp). It does not show vectors, raw retrieval text, storage paths, or OpenAI request ids.
-- History lists `embedding_index` jobs with the label **Document indexing** and the same telemetry fields as analysis jobs.
-- Dashboard Documents / Processed / Storage metrics are unchanged. Chunks are not counted as documents. Embedding jobs may increment the existing monthly AI Requests counter because that metric counts `document_processing_jobs` rows.
-
-Configure `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` in `.env.local` if you want to set it explicitly; the server default is the same model.
-
-## Phase 7B — Secure Semantic Document Retrieval
-
-Phase 7A built the **index**. Phase 7B adds **semantic retrieval** for one indexed document. Phase 7C adds grounded question answering on top of this retrieval. This phase does **not** generate a natural-language answer, Ask AI UI, chat history, citations UI, library-wide search, hybrid keyword search, or reranking.
-
-Apply `supabase/migrations/20260818193000_phase_7b_semantic_retrieval.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
-
-**Query embeddings**
-
-A search question is embedded server-side with the same configuration as document indexing: `OPENAI_EMBEDDING_MODEL` or `text-embedding-3-small`, `dimensions: 1536`, `encoding_format: "float"`. The returned vector is never logged and is never sent to a Client Component.
-
-**Semantic similarity**
-
-Chunks are ranked with pgvector **cosine distance** (`embedding <=> query_embedding`). The API returns **cosine similarity**:
-
-`similarity = 1 - cosine_distance`
-
-Scores are not fabricated. Retrieval is document-scoped: only chunks for the requested document are searched.
-
-**RPC**
-
-`public.match_document_chunks(p_document_id, p_query_embedding, p_match_threshold, p_match_count)` is `SECURITY INVOKER` with an empty `search_path`. It joins `public.document_chunks` to `public.documents` and requires `documents.id = p_document_id` and `documents.user_id = auth.uid()`. Existing `document_chunks` RLS still applies. Chunks must also match the parent document's `embedding_model` and `embedding_version`. Execute is granted only to `authenticated`. Embedding vectors are not returned. `p_match_count` is clamped to 1–10.
-
-**Server-controlled thresholds**
-
-Match count and similarity threshold are not accepted from the client:
-
-- `RAG_MATCH_COUNT = 5`
-- `RAG_SIMILARITY_THRESHOLD = 0.35` (initial project tuning value, not a universal semantic-search threshold)
-
-Queries must be 3–1000 characters after trim.
-
-**Authenticated / RLS search**
-
-`POST /api/documents/<id>/search` accepts `{ "query": "What is the policy number?" }` only. The cookie-based server Supabase client loads the document under RLS. Missing or inaccessible documents return HTTP 404. Search queries are not persisted and are not written to `document_processing_jobs`, so they do not increment the dashboard AI Requests metric.
-
-**Model and version compatibility**
-
-If `documents.embedding_model` does not match the configured query model, or `embedding_version` does not match the current index version (`v1`), search is refused with HTTP 409 (`The document index is out of date. Re-index the document before searching.`). A document that is not `embedding_status = indexed` (and `processed` or `needs_review`) returns HTTP 409 asking the user to index first. Different embedding models are never compared.
-
-**Response**
-
-HTTP 200 returns the trimmed query and up to five matches (`chunkId`, `chunkIndex`, `content`, `pageNumber`, `sectionTitle`, `similarity`), highest similarity first. `pageNumber` / `sectionTitle` are preserved from Phase 7A when present; they are `null` when unknown. Zero matches is a successful empty list, not an error.
-
-## Phase 7C — Grounded Ask This Document
-
-Phase 7C adds **grounded natural-language Q&A for one indexed document**. It does not add cross-document Q&A, workspace-wide search, persistent chat tables, conversation memory, streaming, web search, hybrid search, reranking, or public sharing.
-
-**Architecture**
+The application is a Next.js App Router product. Authentication, PostgreSQL, and private object storage are provided by Supabase. Row Level Security keeps every document, analysis result, processing job, and chunk private to the owning user. Document analysis and embeddings use the OpenAI Responses API and OpenAI embeddings. Semantic retrieval uses pgvector. Production is hosted on Vercel.
 
 ```
-question
-→ query embedding
-→ semantic retrieval (Phase 7B searchDocument)
-→ top document chunks
-→ GPT answer from retrieved evidence only
-→ supporting sources
+Browser
+  ↓
+Next.js
+  ↓
+Supabase Auth / DB / Storage
+  ↓
+OpenAI analysis and embeddings
+  ↓
+pgvector semantic retrieval
+  ↓
+Grounded document Q&A
 ```
 
-Phase 7C is single-turn grounded Q&A. Conversational follow-ups, retrieval-query rewriting, and citation excerpt validation are Phase 7D.
+## RAG Flow
 
-The browser POSTs `{ "question": "..." }` to `/api/documents/<id>/ask`. Match count, similarity threshold, embedding model, source IDs, and retrieved chunks are server-controlled.
+Upload
+→ Analyze
+→ Chunk
+→ Embed
+→ Retrieve
+→ Answer
+→ Validate sources
 
-**Grounding**
+Each question is answered from retrieved evidence for that document. Follow-up questions stay in the browser for the current page session and are not stored in the database.
 
-- Answers use retrieved evidence only. The original file is not re-sent, and the full `document_chunks` table is not sent to GPT.
-- Zero retrieval matches return an unsupported answer immediately and **do not** call the document answer model. This limits both hallucination and cost.
-- `supported` is true only when the supplied chunks support the answer and at least one application-assigned source ID (`S1`–`S5`) is valid. Invented citation IDs are discarded. A supported claim with zero valid citations is treated as unsupported.
-- Retrieved document text is untrusted data. It is sent in the user/context payload, not concatenated into developer instructions. Instructions inside chunks are ignored.
-- If supplied sources conflict, the model must not silently pick one.
+## Security
 
-**Privacy and cost**
+- Private Supabase Storage bucket for uploaded files
+- RLS owner isolation on documents, results, jobs, and chunks
+- Server-only OpenAI API key (`OPENAI_API_KEY` is never `NEXT_PUBLIC_`)
+- Short-lived signed URLs for View Original and Download
+- Prompt-injection separation between instructions, questions, history, and document text
+- Citation validation (invented source IDs and unverified excerpts are dropped)
+- Per-user hourly AI rate limiting
+- No service-role credentials in application code
+- `store: false` on OpenAI Responses requests where used
+- Browser-only temporary Q&A history (cleared on refresh or navigation)
 
-- Answer-generation Responses use `store: false`. OpenAI Response objects are not persisted.
-- Questions and answers are not written to the database. They do not create `document_processing_jobs` rows and do not change dashboard Processed or document status.
-- Server logs may include document id, match count, supported/unsupported, and a high-level failure category. They do not include questions, retrieved text, embeddings, API keys, or tokens.
-- The analysis page keeps recent Q&A pairs in React state for the current visit. Reloading the page clears them.
+## Production
 
-**Ask This Document UI**
+The live application is deployed on Vercel from the GitHub `main` branch.
 
-The experience appears on the analysis page for `processed` and `needs_review` documents. When `embedding_status = indexed`, the user can ask a question. When the document is not indexed, the page shows: `Index this document for Q&A to ask questions about its contents.` and reuses the existing indexing control. Unsupported questions are a valid retrieval result, not a system error.
+Set production environment variables in the Vercel project settings. Confirm Supabase Auth redirect URLs include `https://<production-domain>/auth/callback` and that the `documents` Storage bucket is private.
 
-Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v2`. The configured document model (`OPENAI_DOCUMENT_MODEL` / GPT-5.6 Terra) is unchanged.
+## Environment Variables
 
-## Phase 7D — Conversational RAG, Citation Polish, and Security Hardening
+Copy `.env.example` to `.env.local` for local development. Never commit real values.
 
-Phase 7 layers, in order:
-
-- **Phase 7A** — vector indexing
-- **Phase 7B** — semantic retrieval
-- **Phase 7C** — grounded single-turn Q&A
-- **Phase 7D** — conversational and hardened RAG UX
-
-Phase 7D completes the **single-document RAG experience**. It does not add cross-document Q&A, workspace-wide search, permanent chat-history tables, web search, external tools, streaming, or public Storage.
-
-```
-current user question
-→ recent session conversation (browser-only)
-→ standalone retrieval query (contextualization)
-→ existing Phase 7B searchDocument()
-→ retrieved chunks
-→ grounded answer to the original question
-→ validated sources and evidence excerpts
-```
-
-**Conversational follow-up Q&A**
-
-Ask This Document keeps approximately the last 6–10 turns in React state for the current document page session. Refresh or navigation may clear them. **Clear conversation** removes the in-memory thread. History is not written to the database and does not create `document_processing_jobs` rows.
-
-Each turn runs semantic retrieval again. Previous chunks are not reused without a new search.
-
-The browser may POST optional untrusted history with the current question:
-
-```json
-{
-  "question": "When does it expire?",
-  "history": [
-    {
-      "question": "What is the policy number?",
-      "answer": "The policy number is ..."
-    }
-  ]
-}
-```
-
-Server-side limits: at most 6 prior turns, questions ≤ 1000 characters, answers ≤ 2000 characters, combined history ≈ 8000 characters. Extra keys (document ids, source ids, embeddings, storage paths, model names, retrieval chunks) are rejected. Malformed history returns HTTP 400 (`Invalid conversation history`).
-
-**Standalone retrieval-query contextualization**
-
-When history is present, a dedicated Responses call (`RETRIEVAL_QUERY_PROMPT_VERSION = v1`, `store: false`, no tools) rewrites the follow-up into a standalone semantic-search query, for example `When does the insurance policy expire?`. Document content is not retrieved during this step. Conversation text is untrusted context, never instructions.
-
-The rewritten query is used only for retrieval. The answer model still answers the **original** user question. The standalone query is not displayed, not persisted, and not logged by default. If history is empty, contextualization is skipped. If rewriting fails, the original question is used.
-
-**Question-aware validated excerpts**
-
-Each model citation includes `source_id` and a short `evidence_excerpt` (about ≤ 300 characters) copied from that source. The server:
-
-1. Drops citations whose `source_id` was not assigned for this retrieval.
-2. Drops excerpts that are not actually contained in the associated source text (harmless whitespace is normalized).
-3. Treats a `supported = true` answer with no remaining valid citations as unsupported.
-
-The source UI prefers the validated excerpt for the current question. If a verified excerpt is unavailable, it falls back to a safe chunk excerpt. Sources show Source N, section title and page when present, similarity percentage, the evidence excerpt, and **View Original** via the existing authenticated view route. Storage paths, embeddings, user ids, and OpenAI request ids are not exposed.
-
-**Prompt-injection defenses**
-
-Developer instructions, the user question, conversation context, and document sources are kept in separate payload regions. Source content and conversation history are untrusted. Instructions inside either must not override grounding rules, reveal hidden prompts, or trigger tool use. Previous assistant answers are not evidence; retrieved document sources win when they conflict. Conversation context must not make an unsupported question appear supported.
-
-**Privacy**
-
-Contextualization and answer generation both set `store: false`. Questions, answers, conversation history, and standalone retrieval queries are not persisted. Normal document questions do not inflate dashboard AI-processing metrics.
-
-Prompt version: `DOCUMENT_QA_PROMPT_VERSION = v2`. The configured document model is unchanged.
-
-## Phase 8A — Production Readiness
-
-Phase 8A prepares the app for a public Vercel deployment. It does **not** add billing, external analytics, cross-document Q&A, or a Content-Security-Policy. Do not deploy until the checklist at the end of this section is complete.
-
-Apply `supabase/migrations/20260820_phase_8a_ai_rate_limits.sql` through the project's usual Supabase migration workflow. Do not apply it automatically from the app. The app does not use a service-role key.
-
-**Environment variables**
-
-Copy `.env.example` to `.env.local` for local development. Never commit real keys. `OPENAI_API_KEY` must never be prefixed with `NEXT_PUBLIC_`.
-
-| Name | Where it is used |
+| Name | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server Supabase clients |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server Supabase clients |
-| `NEXT_PUBLIC_SITE_URL` | Canonical site origin (auth email redirects) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server Supabase client |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server Supabase client |
+| `NEXT_PUBLIC_SITE_URL` | Canonical site origin for auth email redirects |
 | `OPENAI_API_KEY` | Server-only OpenAI client |
 | `OPENAI_DOCUMENT_MODEL` | Document analysis, retrieval text, and Q&A |
 | `OPENAI_EMBEDDING_MODEL` | Vector embeddings |
-| `OPENAI_REQUEST_TIMEOUT_MS` | OpenAI SDK request timeout |
+| `OPENAI_REQUEST_TIMEOUT_MS` | Optional OpenAI SDK request timeout |
 
-Local `NEXT_PUBLIC_SITE_URL` is `http://localhost:3000`. Production must set the HTTPS Vercel production URL. Server helpers fail clearly when a required variable is missing and never log secret values.
+## Local Development
 
-Auth email confirmation uses `getSiteUrl()`:
+```bash
+npm install
+cp .env.example .env.local
+# Fill in the values listed above.
+npm run dev
+```
 
-1. `NEXT_PUBLIC_SITE_URL`
-2. `NEXT_PUBLIC_VERCEL_URL` (https added when needed; preview/non-production only)
-3. `http://localhost:3000`
+Open [http://localhost:3000](http://localhost:3000).
 
-The PKCE callback at `/auth/callback` is unchanged. SSR cookie auth, protected routes, and logged-in/logged-out redirects are unchanged.
+```bash
+npm run lint
+npm run build
+```
 
-**AI rate limiting**
+## Development Milestones
 
-Expensive AI routes consume a per-user hourly quota **before** OpenAI work and **before** creating processing-job rows:
+High-level build sequence:
 
-| Action | Route | Limit |
-| --- | --- | --- |
-| `document_analysis` | `POST /api/documents/<id>/process` | 10 / hour |
-| `document_index` | `POST /api/documents/<id>/index` | 10 / hour |
-| `semantic_search` | `POST /api/documents/<id>/search` | 60 / hour |
-| `document_qa` | `POST /api/documents/<id>/ask` | 30 / hour |
+1. Authentication, private storage, and the document library
+2. Multi-format AI analysis with structured extraction
+3. Vector indexing, semantic retrieval, and grounded conversational Q&A
+4. Production hardening, Vercel deployment, and portfolio polish
 
-Limits live in `public.consume_ai_rate_limit(p_action)`. The browser cannot send a user id, numeric limit, or action quota. Identity is `auth.uid()` from the cookie session. Ask This Document counts as `document_qa` only; internal retrieval is not a second `semantic_search` charge.
+### Architecture notes
 
-`public.ai_rate_limits` has RLS enabled and no authenticated CRUD policies. Blocked requests return HTTP 429 with `{ "error": "Too many requests. Please try again later." }` and `Retry-After` when the reset time is known. The UI shows: `You've reached the temporary request limit. Please try again later.`
-
-**Security headers** (global, via `next.config.ts`)
-
-- `X-Content-Type-Options: nosniff`
-- `Referrer-Policy: strict-origin-when-cross-origin`
-- `X-Frame-Options: DENY`
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-
-**Private Storage and RLS**
-
-The `documents` bucket stays private. View Original / Download still use short-lived signed URLs. Storage paths are not returned to the UI. The 25 MiB upload limit and allowed file-type checks are unchanged. `documents`, `document_results`, `document_processing_jobs`, and `document_chunks` remain owner-scoped. Rate-limit rows are not readable through PostgREST.
-
-**Health**
-
-- `GET /api/health` — `{ "status": "ok" }` or `{ "status": "degraded" }`. No keys, URLs, models, or stack traces. Does not call OpenAI.
-- `GET /api/health/supabase` — existing connectivity probe, preserved.
-
-**Production deployment prerequisites**
-
-1. Apply all Supabase migrations, including Phase 8A.
-2. Set the production environment variables listed above (names only; never paste secrets into git).
-3. Set `NEXT_PUBLIC_SITE_URL` to the HTTPS production domain.
-4. Confirm the Supabase Auth redirect URLs include `https://<production-domain>/auth/callback`.
-5. Confirm the `documents` Storage bucket is private.
-6. Deploy to Vercel only after those steps. This repository does not deploy automatically.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The later phases added pgvector indexing, document-scoped retrieval, grounded Ask This Document, conversational follow-ups, citation excerpt validation, AI rate limiting, security headers, and a production Vercel deployment. Cross-document Q&A, billing, persistent chat tables, and analytics vendors are intentionally out of scope.

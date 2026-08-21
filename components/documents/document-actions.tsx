@@ -97,10 +97,10 @@ export function DocumentActions({
           target="_blank"
           rel="noopener noreferrer"
           className={labeled ? LABELED_BUTTON : ICON_BUTTON}
-          title="View original"
+          title="View Original"
           aria-label={`View original ${fileName}`}
         >
-          <Eye className="h-4 w-4" />
+          <Eye className="h-4 w-4" aria-hidden="true" />
           {labeled ? "View Original" : null}
         </a>
         <a
@@ -109,7 +109,7 @@ export function DocumentActions({
           title="Download"
           aria-label={`Download ${fileName}`}
         >
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4" aria-hidden="true" />
           {labeled ? "Download" : null}
         </a>
         {children}
@@ -124,7 +124,7 @@ export function DocumentActions({
           title="Delete"
           aria-label={`Delete ${fileName}`}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
           {labeled ? "Delete" : null}
         </button>
       </div>
@@ -186,8 +186,8 @@ export function DocumentActions({
                 disabled={isDeleting}
                 className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isDeleting ? "Deleting…" : "Delete document"}
+                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                {isDeleting ? "Deleting..." : "Delete document"}
               </button>
             </div>
           </div>
